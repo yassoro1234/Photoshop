@@ -1,0 +1,7 @@
+node_modules/
+android/
+ios/
+*.keystore
+*.jks
+keystore.b64
+secrets.txt

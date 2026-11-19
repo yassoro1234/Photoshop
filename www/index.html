@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ar" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1e1e1e">
+<title>Photo Studio</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+  <div id="menubar"></div>
+
+  <div id="tabs"></div>
+
+  <div id="opts"></div>
+
+  <div id="ws">
+    <div id="tools"></div>
+
+    <div id="stage">
+      <div id="canvasWrap">
+        <canvas id="comp"></canvas>
+        <canvas id="ov"></canvas>
+      </div>
+      <div id="dropHint">أفلت الصورة لإضافتها كطبقة</div>
+    </div>
+
+    <div id="resizer" title="اسحب لتغيير العرض"></div>
+
+    <div id="side">
+      <div class="hdr">
+        <span>Layers</span>
+        <button class="ico" onclick="togglePanel()" title="إغلاق">✕</button>
+      </div>
+      <div id="layerCtl">
+        <div class="row">
+          <button onclick="addLayer()" title="طبقة جديدة (Ctrl+Shift+N)">+ طبقة</button>
+          <button onclick="addGroup()" title="مجموعة جديدة">📁 مجموعة</button>
+          <button onclick="duplicateLayer()" title="تكرار (Ctrl+J)">تكرار</button>
+          <button onclick="deleteLayer()" title="حذف">حذف</button>
+        </div>
+        <div class="row">
+          <select id="blend" onchange="setBlend(this.value)">
+            <option value="source-over">عادي</option>
+            <option value="multiply">ضرب</option>
+            <option value="screen">شاشة</option>
+            <option value="overlay">تراكب</option>
+            <option value="darken">تغميق</option>
+            <option value="lighten">تفتيح</option>
+            <option value="difference">فرق</option>
+          </select>
+        </div>
+        <div class="row">
+          <span>الشفافية</span>
+          <input type="range" id="opacity" min="0" max="100" value="100"
+                 oninput="setOpacity(this.value)" onchange="commitOpacity()">
+          <span id="opVal">100%</span>
+        </div>
+        <div class="row">
+          <button onclick="moveLayer(1)" title="للأعلى">▲</button>
+          <button onclick="moveLayer(-1)" title="للأسفل">▼</button>
+          <button onclick="mergeDown()" title="دمج للأسفل">دمج ▼</button>
+          <button onclick="toggleLock(state.active)" title="قفل">🔒</button>
+          <button onclick="addMask()" title="إضافة قناع">▣</button>
+          <button onclick="toggleMaskEdit()" title="تحرير القناع">✎▣</button>
+        </div>
+      </div>
+      <div id="layers"></div>
+    </div>
+  </div>
+
+  <div id="status">
+    <span id="docInfo">—</span>
+    <span id="cursorInfo"></span>
+    <span class="sp"></span>
+    <span class="mobileHide">Space + سحب · عجلة للتكبير</span>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="ctx"></div>
+
+<div id="modal">
+  <div class="box">
+    <div class="mhead"><span id="mTitle"></span><button id="mClose" class="ico">✕</button></div>
+    <div id="mBody"></div>
+    <div id="mFoot"></div>
+  </div>
+</div>
+
+<input type="file" id="fileIn" accept="image/*" multiple>
+<input type="file" id="projIn" accept=".json,application/json">
+
+<script src="js/state.js"></script>
+<script src="js/doc.js"></script>
+<script src="js/view.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/adjust.js"></script>
+<script src="js/image.js"></script>
+<script src="js/io.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

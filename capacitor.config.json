@@ -1,0 +1,8 @@
+{
+  "appId": "com.yasser.photostudio",
+  "appName": "Photo Studio",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
