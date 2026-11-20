@@ -48,7 +48,9 @@ jobs:
           echo "apply from: 'signing.gradle'" >> android/app/build.gradle
           sed -i "s/versionCode 1/versionCode ${GITHUB_RUN_NUMBER}/" android/app/build.gradle
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > android/app/release.keystore
+            # Remove any whitespace/line breaks introduced when the secret was pasted
+            echo "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > android/app/release.keystore \
+              || { echo "::error::ANDROID_KEYSTORE_BASE64 is not valid base64. Re-copy keystore.b64 as one line."; exit 1; }
             echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/android/app/release.keystore" >> "$GITHUB_ENV"
             echo "Release signing enabled"
           else
