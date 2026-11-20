@@ -182,6 +182,7 @@ function menuDefs() {
       { label: 'تراجع', key: 'Ctrl+Z', fn: undo },
       { label: 'إعادة', key: 'Ctrl+Shift+Z', fn: redo },
       { sep: 1 },
+      { label: 'تحويل حر', key: 'Ctrl+T', fn: freeTransformCurrent },
       { label: 'تحويل الطبقة…', fn: layerTransformDialog },
       { label: 'حذف المحتوى المحدد', key: 'Del', fn: deleteSelectionContent }
     ]},
@@ -320,6 +321,8 @@ function buildTools() {
     d.onclick = () => setTool(tl.id);
     box.appendChild(d);
   });
+  box.appendChild(makeSwatches());
+  renderSwatches();   // the swatch squares need to be in the document before they can be colored
 }
 
 /* ---------- options bar ---------- */
@@ -358,7 +361,8 @@ function buildOpts() {
       break;
     case 'text':
       html += bounded('textSize', 'الحجم', 6, 400, 48);
-      html += hint('انقر على اللوحة لإضافة نص');
+      html += btn('textProps', 'خصائص النص');
+      html += hint('انقر لإضافة نص، أو انقر نصاً موجوداً لتعديله');
       break;
     case 'pen':
       html += bounded('brushSize', 'سُمك الخط', 1, 200, 12);
@@ -374,30 +378,31 @@ function buildOpts() {
     case 'marquee': case 'lasso':
       html += btn('selAll', 'الكل') + btn('selNone', 'إلغاء التحديد') + btn('selInv', 'عكس');
       break;
+    case 'eyedrop':
+      html += `<span>${esc(t('العينة من'))}</span> <select id="sampleSrc">
+        <option value="all"${state.sampleSrc === 'all' ? ' selected' : ''}>${esc(t('كل الطبقات'))}</option>
+        <option value="layer"${state.sampleSrc === 'layer' ? ' selected' : ''}>${esc(t('الطبقة الحالية'))}</option>
+      </select>`;
+      html += hint('اسحب فوق الصورة لمعاينة اللون، وارفع الإصبع لاختياره');
+      break;
     case 'move':
-      html += hint('اسحب الطبقة، أو المحدد إن وُجد');
+      if (state.ft) {
+        html += btn('ftApply', 'تطبيق (Enter)', 'pri') + btn('ftCancel', 'إلغاء (Esc)');
+        html += hint('اسحب المقابض للتحويل، والدوران من المقبض العلوي');
+      } else {
+        html += hint('اسحب الطبقة، أو المحدد إن وُجد · انقر مرتين للتحويل الحر');
+      }
       break;
     default:
       break;
   }
 
   html += `<span class="sp"></span>
-    <span class="colors">
-      <input type="color" id="fgColor" value="${state.fg}" title="${esc(t('لون المقدمة'))}">
-      <input type="color" id="bgColor" value="${state.bg}" title="${esc(t('لون الخلفية'))}">
-      <button id="swapColors" title="${esc(t('تبديل الألوان'))}">⇄</button>
-    </span>
     <span id="zoomInfo">${Math.round(state.zoom * 100)}%</span>
     ${btn('fitBtn', 'ملاءمة')}
     <button id="panelBtn" class="mobileOnly">${esc(t('الطبقات'))}</button>`;
   bar.innerHTML = html;
   bindOpts();
-}
-
-function syncColors() {
-  const f = $('fgColor'), b = $('bgColor');
-  if (f) f.value = state.fg;
-  if (b) b.value = state.bg;
 }
 
 function bindOpts() {
@@ -418,10 +423,11 @@ function bindOpts() {
   on('selInv', invertSelection);
   on('fitBtn', resetView);
   on('panelBtn', togglePanel);
-  on('swapColors', () => { [state.fg, state.bg] = [state.bg, state.fg]; syncColors(); });
-  const fg = $('fgColor'), bg = $('bgColor');
-  if (fg) fg.oninput = () => { state.fg = fg.value; };
-  if (bg) bg.oninput = () => { state.bg = bg.value; };
+  on('textProps', editTextLayer);
+  on('ftApply', ftCommit);
+  on('ftCancel', ftCancel);
+  const ss = $('sampleSrc');
+  if (ss) ss.onchange = () => { state.sampleSrc = ss.value; };
 }
 
 /* ---------- layers panel ---------- */
@@ -718,7 +724,7 @@ window.addEventListener('keydown', e => {
       z: () => (e.shiftKey ? redo() : undo()),
       y: redo, n: () => (e.shiftKey ? addLayer() : newDocDialog()),
       o: openFileDialog, s: () => saveProject(false),
-      a: selectAll, d: clearSelection, j: duplicateLayer, g: addGroup,
+      a: selectAll, d: clearSelection, j: duplicateLayer, g: addGroup, t: freeTransformCurrent,
       '0': resetView, '=': () => zoomAt(1.25), '+': () => zoomAt(1.25), '-': () => zoomAt(0.8)
     };
     if (k === 'e' && e.shiftKey) { e.preventDefault(); return exportAs('png'); }
@@ -728,10 +734,12 @@ window.addEventListener('keydown', e => {
 
   if (e.key === ' ') { e.preventDefault(); state.spaceDown = true; return; }
   if (e.key === 'Enter') {
+    if (state.ft) { e.preventDefault(); return ftCommit(); }
     if (state.crop) { e.preventDefault(); return applyCrop(); }
     if (state.pen) { e.preventDefault(); return commitPen(); }
   }
   if (e.key === 'Escape') {
+    if (state.ft) return ftCancel();
     if (state.crop) return cancelCrop();
     if (state.pen) return cancelPen();
     if (state.maskEdit) return exitMaskEdit();
@@ -741,6 +749,8 @@ window.addEventListener('keydown', e => {
     if (state.sel) { e.preventDefault(); deleteSelectionContent(); }
     return;
   }
+  if (k === 'x') return swapColors();
+  if (k === 'd') return resetColors();
   if (TOOL_KEYS[k]) setTool(TOOL_KEYS[k]);
 });
 window.addEventListener('keyup', e => { if (e.key === ' ') state.spaceDown = false; });

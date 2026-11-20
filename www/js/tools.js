@@ -111,6 +111,17 @@ function makePaintTool(erase) {
 defTool('move', {
   cursor: 'move',
   down(p, e, d) {
+    if (state.ft) {
+      // pressing a transform handle, or the layer itself, keeps the transform; anywhere else applies it
+      const hit = ftHit(p);
+      if (hit) { d.ftHit = hit; d.last = p; return; }
+      ftCommit();
+    }
+    // auto-select: pressing a layer's pixels makes it the active layer
+    if (!state.sel) {
+      const i = layerAt(p);
+      if (i >= 0 && i !== state.active) { state.active = i; refreshLayers(); }
+    }
     const l = curRaster();
     if (!l || l.locked) { d.skip = true; return; }
     d.tot = { x: 0, y: 0 }; d.moved = false;
@@ -130,6 +141,7 @@ defTool('move', {
     d.base = cloneC(l.canvas);
   },
   move(p, e, d) {
+    if (d.ftHit) return ftMove(p, e, d);
     if (d.skip) return;
     const l = curRaster();
     const dx = p.x - d.last.x, dy = p.y - d.last.y;
@@ -147,7 +159,7 @@ defTool('move', {
     render();
   },
   up(p, e, d) {
-    if (d.skip) return;
+    if (d.ftHit || d.skip) return;
     const l = curRaster();
     state.preview = null;
     if (d.lift) {
@@ -171,7 +183,7 @@ defTool('move', {
     render(); refreshLayers();
   },
   cancel(d) {
-    if (d.skip) return;
+    if (d.ftHit || d.skip) return;
     const l = curRaster();
     state.preview = null;
     if (d.base) { l.ctx.clearRect(0, 0, state.W, state.H); l.ctx.drawImage(d.base, 0, 0); }
@@ -340,13 +352,16 @@ defTool('bucket', {
   }
 });
 
+/* Text: click existing text to edit it, or click empty canvas to create a text layer */
 defTool('text', {
   cursor: 'text',
-  down(p, e, d) { d.start = p; },
-  up(p, e, d) {
-    if (Math.hypot(p.x - d.start.x, p.y - d.start.y) > 6) return;
-    const s = prompt(t('اكتب النص'));
-    if (s && s.trim()) addTextLayer(p, s);
+  down(p) {
+    const i = layerAt(p, 'text');
+    if (i >= 0) {
+      state.active = i; refreshLayers();
+      return openTextDialog(state.layers[i]);
+    }
+    openTextDialog(null, p);
   }
 });
 
@@ -359,16 +374,13 @@ defTool('pen', {
   }
 });
 
+/* Eyedropper: the foreground color follows the pointer while it is held down */
 defTool('eyedrop', {
   cursor: 'crosshair',
-  down(p) {
-    const x = Math.floor(p.x), y = Math.floor(p.y);
-    if (x < 0 || y < 0 || x >= state.W || y >= state.H) return;
-    const v = $('comp').getContext('2d').getImageData(x, y, 1, 1).data;
-    if (v[3] === 0) return toast(t('نقطة شفافة'));
-    state.fg = '#' + [v[0], v[1], v[2]].map(n => n.toString(16).padStart(2, '0')).join('');
-    syncColors();
-  }
+  down(p, e) { eyedropPick(p, e); },
+  move(p, e) { eyedropPick(p, e); },
+  up() { hideLoupe(); },
+  cancel() { hideLoupe(); }
 });
 
 defTool('hand', {
@@ -409,6 +421,7 @@ function cancelPen() { state.pen = null; drawOverlay(); }
 /* ---------- tool switching ---------- */
 function setTool(id) {
   if (state.pen) cancelPen();
+  if (state.ft) ftCommit();
   state.tool = id;
   const tl = TOOL_LIST.find(x => x.id === id);
   $('stage').style.cursor = TOOLS[id].cursor || 'default';

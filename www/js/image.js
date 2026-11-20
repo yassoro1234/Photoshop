@@ -184,38 +184,4 @@ function cancelCrop() {
   render();
 }
 
-/* ---------- text layers ---------- */
-function addTextLayer(p, str) {
-  if (!state.layers.length) newDoc();
-  const size = optNum('textSize', 48);
-  const l = makeLayer(str.slice(0, 24), 'text');
-  l.text = { str, size, color: state.fg, x: Math.round(p.x), y: Math.round(p.y) };
-  const a = cur();
-  l.group = a && a.type === 'group' ? a.id : (a ? a.group : null);
-  insertAboveActive(l);
-  drawTextLayer(l);
-  pushHistory(); render(); refreshLayers();
-}
-
-function drawTextLayer(l) {
-  const t = l.text; if (!t) return;
-  const x = l.ctx;
-  x.clearRect(0, 0, l.canvas.width, l.canvas.height);
-  x.font = `600 ${t.size}px system-ui, sans-serif`;
-  x.fillStyle = t.color;
-  x.textBaseline = 'top';
-  t.str.split('\n').forEach((line, i) => {
-    x.fillText(line, t.x, t.y + i * t.size * 1.2);
-  });
-}
-
-function editTextLayer() {
-  const l = curRaster();
-  if (!l || l.type !== 'text' || !l.text) return toast(t('اختر طبقة نص'));
-  const s = prompt(t('تعديل النص'), l.text.str);
-  if (s === null) return;
-  l.text.str = s;
-  l.name = s.slice(0, 24) || l.name;
-  drawTextLayer(l);
-  pushHistory(); render(); refreshLayers();
-}
+/* Text layers live in text.js */

@@ -76,6 +76,10 @@ function render() {
     if (!isRaster(l) || !isLayerVisible(l)) continue;
     x.globalAlpha = l.opacity;
     x.globalCompositeOperation = l.blend;
+    if (state.ft && state.ft.id === l.id) {     // live preview of a free transform
+      x.save(); ftApply(x, state.ft); x.drawImage(state.ft.src, 0, 0); x.restore();
+      continue;
+    }
     if (l.mask) {
       const s = scratch(), sx = s.getContext('2d');
       sx.globalCompositeOperation = 'source-over';
@@ -153,6 +157,8 @@ function drawOverlay() {
     x.strokeRect(c.x, c.y, c.w, c.h);
     x.restore();
   }
+
+  if (state.ft) drawFtHandles(x);
 }
 
 /* ---------- selection ---------- */
@@ -245,6 +251,7 @@ function snapshot() {
   };
 }
 function restoreSnap(s) {
+  state.ft = null;
   state.W = s.W; state.H = s.H;
   resizeStage();
   state.layers = s.layers.map(e => {
@@ -281,7 +288,7 @@ function newDoc(w = 1280, h = 800, bg = null, name = 'Untitled') {
   state.W = w; state.H = h;
   state.layers = []; state.active = -1;
   state.undo = []; state.redo = [];
-  state.sel = null; state.crop = null; state.preview = null; state.pen = null;
+  state.sel = null; state.crop = null; state.preview = null; state.pen = null; state.ft = null;
   state.docName = name; state.dirty = false;
   const l = nameLayer(makeLayer(''), 'Background');
   if (bg) { l.ctx.fillStyle = bg; l.ctx.fillRect(0, 0, w, h); }

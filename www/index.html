@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#1e1e1e">
 <title>Photo Studio</title>
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/picker.css">
 </head>
 <body>
 <div id="app">
@@ -92,6 +93,27 @@
 
 <input type="file" id="fileIn" accept="image/*" multiple>
 <input type="file" id="projIn" accept=".json,application/json">
+<input type="file" id="fontIn" accept=".ttf,.otf,.woff,.woff2">
+
+<div id="cpick">
+  <canvas id="cpWheel" width="220" height="220"></canvas>
+  <div class="cpRow">
+    <input id="cpHex" maxlength="7" spellcheck="false">
+    <span class="cpPrev"><i id="cpOld"></i><i id="cpNew"></i></span>
+  </div>
+  <div class="cpRow">
+    <label>R <input type="number" id="cpR" min="0" max="255"></label>
+    <label>G <input type="number" id="cpG" min="0" max="255"></label>
+    <label>B <input type="number" id="cpB" min="0" max="255"></label>
+  </div>
+  <div class="cpSec" data-i18n="ألوان حديثة"></div>
+  <div id="cpRecent"></div>
+  <div class="cpRow">
+    <button id="cpEyedrop" data-i18n="اختر من الصورة"></button>
+    <button id="cpClose" class="ico" data-i18n-title="إغلاق">✕</button>
+  </div>
+</div>
+<div id="loupe"><canvas id="loupeCv" width="132" height="132"></canvas><span id="loupeHex">—</span></div>
 
 <script src="js/i18n.js"></script>
 <script src="js/state.js"></script>
@@ -101,6 +123,9 @@
 <script src="js/adjust.js"></script>
 <script src="js/image.js"></script>
 <script src="js/io.js"></script>
+<script src="js/color.js"></script>
+<script src="js/text.js"></script>
+<script src="js/transform.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>

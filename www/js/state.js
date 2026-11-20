@@ -5,7 +5,9 @@ const state = {
   active: -1,
   zoom: 1, panX: 0, panY: 0,
   tool: 'move',
-  fg: '#4f7fb8', bg: '#ffffff',
+  fg: '#000000', bg: '#ffffff',
+  sampleSrc: 'all',    // eyedropper source: 'all' layers or 'layer' (current)
+  ft: null,            // free transform in progress {id, src, box, sx, sy, rot, ox, oy}
   sel: null,           // {mask:canvas, poly:[{x,y}]|null, box:{x,y,w,h}}
   crop: null,          // {x,y,w,h} while cropping
   preview: null,       // overlay preview shape
