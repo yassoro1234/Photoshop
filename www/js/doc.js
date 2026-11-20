@@ -73,7 +73,7 @@ function render() {
   x.globalAlpha = 1;
   x.globalCompositeOperation = 'source-over';
   drawOverlay();
-  $('docInfo').textContent = `${state.W} × ${state.H} px · ${state.layers.filter(isRaster).length} layers`;
+  $('docInfo').textContent = infoText(state.W, state.H, state.layers.filter(isRaster).length);
   updateTitle();
 }
 
@@ -265,7 +265,7 @@ function newDoc(w = 1280, h = 800, bg = null, name = 'Untitled') {
   state.undo = []; state.redo = [];
   state.sel = null; state.crop = null; state.preview = null; state.pen = null;
   state.docName = name; state.dirty = false;
-  const l = makeLayer('Background');
+  const l = makeLayer(t('Background'));
   if (bg) { l.ctx.fillStyle = bg; l.ctx.fillRect(0, 0, w, h); }
   state.layers.push(l);
   state.active = 0;
@@ -283,14 +283,14 @@ function insertAboveActive(l) {
 function addLayer() {
   if (!state.layers.length) return newDoc();
   const a = cur();
-  const l = makeLayer('Layer ' + uid());
+  const l = makeLayer(t('Layer') + ' ' + uid());
   l.group = a && a.type === 'group' ? a.id : (a ? a.group : null);
   insertAboveActive(l);
   pushHistory(); render(); refreshLayers();
 }
 function addGroup() {
   if (!state.layers.length) return newDoc();
-  insertAboveActive(makeGroup('Group ' + uid()));
+  insertAboveActive(makeGroup(t('Group') + ' ' + uid()));
   pushHistory(); render(); refreshLayers();
 }
 function deleteLayer() {
@@ -298,7 +298,7 @@ function deleteLayer() {
   if (l.type === 'group') {
     state.layers.forEach(x => { if (x.group === l.id) x.group = null; });
   } else if (state.layers.filter(isRaster).length <= 1) {
-    return toast('لا يمكن حذف آخر طبقة');
+    return toast(t('لا يمكن حذف آخر طبقة'));
   }
   state.layers.splice(state.active, 1);
   state.active = clamp(state.active, 0, state.layers.length - 1);
@@ -306,7 +306,7 @@ function deleteLayer() {
 }
 function duplicateLayer() {
   const src = curRaster(); if (!src) return;
-  const l = makeLayer(src.name + ' copy', src.type, state.W, state.H);
+  const l = makeLayer(src.name + ' ' + t('copy'), src.type, state.W, state.H);
   l.ctx.drawImage(src.canvas, 0, 0);
   Object.assign(l, { opacity: src.opacity, blend: src.blend, group: src.group, text: src.text ? { ...src.text } : null });
   if (src.mask) l.mask = cloneC(src.mask);
@@ -315,7 +315,7 @@ function duplicateLayer() {
 }
 function renameLayer() {
   const l = cur(); if (!l) return;
-  const n = prompt('اسم الطبقة', l.name);
+  const n = prompt(t('اسم الطبقة'), l.name);
   if (n && n.trim()) { l.name = n.trim(); pushHistory(); refreshLayers(); }
 }
 function moveLayer(dir) {
@@ -334,7 +334,7 @@ function moveLayerTo(from, to) {
 }
 function mergeDown() {
   const i = state.active, top = cur(), below = state.layers[i - 1];
-  if (!isRaster(top) || !isRaster(below)) return toast('يجب أن تكون الطبقتان بكسل');
+  if (!isRaster(top) || !isRaster(below)) return toast(t('يجب أن تكون الطبقتان بكسل'));
   below.ctx.save();
   below.ctx.globalAlpha = top.opacity;
   below.ctx.globalCompositeOperation = top.blend;
@@ -347,7 +347,7 @@ function mergeDown() {
 function flattenAll() {
   const r = state.layers.filter(isRaster);
   if (r.length < 2) return;
-  const out = makeLayer('Flattened');
+  const out = makeLayer(t('Flattened'));
   for (const l of r) if (isLayerVisible(l)) {
     out.ctx.globalAlpha = l.opacity;
     out.ctx.globalCompositeOperation = l.blend;
@@ -374,7 +374,7 @@ function toggleLock(i) {
 }
 function addMask() {
   const l = curRaster(); if (!l) return;
-  if (l.mask) return toast('القناع موجود بالفعل');
+  if (l.mask) return toast(t('القناع موجود بالفعل'));
   l.mask = mkCanvas(state.W, state.H);
   const x = l.mask.getContext('2d');
   x.fillStyle = '#000'; x.fillRect(0, 0, state.W, state.H);
@@ -387,10 +387,17 @@ function removeMask() {
 }
 function toggleMaskEdit() {
   const l = curRaster();
-  if (!l || !l.mask) return toast('أضف قناعاً أولاً');
+  if (!l || !l.mask) return toast(t('أضف قناعاً أولاً'));
   state.maskEdit = !state.maskEdit;
-  toast(state.maskEdit ? 'تحرير القناع: الفرشاة تُظهر، الممحاة تُخفي' : 'تحرير الطبقة');
-  refreshLayers();
+  toast(state.maskEdit ? t('تحرير القناع: الفرشاة تُظهر، الممحاة تُخفي') : t('تحرير الطبقة'));
+  buildOpts(); refreshLayers();
+}
+/* leave mask-editing mode (exit button, Escape, or selecting another layer) */
+function exitMaskEdit() {
+  if (!state.maskEdit) return;
+  state.maskEdit = false;
+  toast(t('تم الخروج من تحرير القناع'));
+  buildOpts(); refreshLayers();
 }
 function setGroupOf(i, groupId) {
   const l = state.layers[i];
@@ -401,5 +408,5 @@ function setGroupOf(i, groupId) {
 
 /* ---------- title / status ---------- */
 function updateTitle() {
-  document.title = (state.dirty ? '● ' : '') + state.docName + ' — Photo Studio';
+  document.title = (state.dirty ? '● ' : '') + state.docName + ' — ' + t('Photo Studio');
 }

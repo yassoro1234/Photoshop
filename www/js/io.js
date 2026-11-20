@@ -18,7 +18,7 @@ async function saveBlob(blob, filename) {
     const data = await blobToBase64(blob);
     const path = 'PhotoStudio/' + filename;
     const res = await Filesystem.writeFile({ path, data, directory: 'DOCUMENTS', recursive: true });
-    await Share.share({ title: filename, url: res.uri, dialogTitle: 'مشاركة / حفظ' });
+    await Share.share({ title: filename, url: res.uri, dialogTitle: t('مشاركة / حفظ') });
     return;
   }
   const a = document.createElement('a');
@@ -54,7 +54,7 @@ function importFiles(files) {
       if (--pending === 0) { pushHistory(); render(); refreshLayers(); }
       URL.revokeObjectURL(url);
     };
-    img.onerror = () => { toast('تعذر فتح ' + f.name); URL.revokeObjectURL(url); };
+    img.onerror = () => { toast(t('تعذر فتح ') + f.name); URL.revokeObjectURL(url); };
     img.src = url;
   });
 }
@@ -69,20 +69,20 @@ function flattenedCanvas(opaque) {
 }
 
 function exportAs(kind, quality = 0.92) {
-  if (!state.layers.length) return toast('لا توجد صورة للتصدير');
+  if (!state.layers.length) return toast(t('لا توجد صورة للتصدير'));
   const mime = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' }[kind];
   const ext = kind;
   const c = flattenedCanvas(kind === 'jpg');
   c.toBlob(b => {
-    if (!b) return toast('فشل التصدير');
-    saveBlob(b, `${state.docName}.${ext}`).catch(() => toast('فشل الحفظ'));
+    if (!b) return toast(t('فشل التصدير'));
+    saveBlob(b, `${state.docName}.${ext}`).catch(() => toast(t('فشل الحفظ')));
   }, mime, quality);
 }
 
 /* ---------- project save / open (.psproj.json) ---------- */
 async function saveProject(asNew) {
   if (asNew || !state.docName || state.docName === 'Untitled') {
-    const n = prompt('اسم المشروع', state.docName);
+    const n = prompt(t('اسم المشروع'), state.docName);
     if (!n) return;
     state.docName = n.trim() || 'Untitled';
   }
@@ -97,8 +97,8 @@ async function saveProject(asNew) {
   };
   const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
   state.dirty = false; updateTitle();
-  saveBlob(blob, `${state.docName}.psproj.json`).catch(() => toast('فشل الحفظ'));
-  toast('تم حفظ المشروع');
+  saveBlob(blob, `${state.docName}.psproj.json`).catch(() => toast(t('فشل الحفظ')));
+  toast(t('تم حفظ المشروع'));
 }
 
 function loadImage(src) {
@@ -140,9 +140,9 @@ async function openProjectFile(file) {
     pushHistory();
     resetView();
     render(); refreshLayers();
-    toast('تم فتح المشروع');
+    toast(t('تم فتح المشروع'));
   } catch (err) {
-    toast('ملف المشروع غير صالح');
+    toast(t('ملف المشروع غير صالح'));
   }
 }
 
@@ -178,7 +178,7 @@ function newTab(w, h, bg, name) {
   renderTabs();
 }
 function closeTab(i) {
-  if (state.docs.length <= 1) return toast('لا يمكن إغلاق آخر مستند');
+  if (state.docs.length <= 1) return toast(t('لا يمكن إغلاق آخر مستند'));
   state.docs.splice(i, 1);
   let ni = state.docIndex;
   if (i < state.docIndex) ni--;

@@ -1,4 +1,4 @@
-/* ===== UI: menus, tool rail, options bar, layers panel, dialogs, shortcuts ===== */
+/* ===== UI: menus, tool rail, options bar, layers panel, dialogs, shortcuts, settings ===== */
 
 /* ---------- selection helpers used by menus ---------- */
 function selectAll() {
@@ -14,13 +14,13 @@ function invertSelection() {
   setSelection(m, null, { x: 0, y: 0, w: state.W, h: state.H });
 }
 function deleteSelectionContent() {
-  const t = strokeTarget();
-  if (!t || !state.sel) return toast('لا يوجد تحديد');
-  if (curRaster().locked) return toast('الطبقة مقفلة');
-  t.ctx.save();
-  t.ctx.globalCompositeOperation = 'destination-out';
-  t.ctx.drawImage(state.sel.mask, 0, 0);
-  t.ctx.restore();
+  const t0 = strokeTarget();
+  if (!t0 || !state.sel) return toast(t('لا يوجد تحديد'));
+  if (curRaster().locked) return toast(t('الطبقة مقفلة'));
+  t0.ctx.save();
+  t0.ctx.globalCompositeOperation = 'destination-out';
+  t0.ctx.drawImage(state.sel.mask, 0, 0);
+  t0.ctx.restore();
   pushHistory(); render(); refreshLayers();
 }
 
@@ -52,28 +52,33 @@ function dismissModal() {
 $('mClose').onclick = dismissModal;
 $('modal').addEventListener('pointerdown', e => { if (e.target.id === 'modal') dismissModal(); });
 
-const PRESETS = [
-  { v: '1280x800', label: 'مخصص 1280×800' },
-  { v: '1920x1080', label: 'Full HD 1920×1080' },
-  { v: '1080x1080', label: 'مربع 1080×1080' },
-  { v: '1080x1920', label: 'ستوري 1080×1920' },
-  { v: '2480x3508', label: 'A4 (300dpi)' },
-  { v: '512x512', label: 'أيقونة 512×512' }
-];
+function presetDefs() {
+  return [
+    { v: '1280x800', label: t('مخصص 1280×800') },
+    { v: '1920x1080', label: t('Full HD 1920×1080') },
+    { v: '1080x1080', label: t('مربع 1080×1080') },
+    { v: '1080x1920', label: t('ستوري 1080×1920') },
+    { v: '2480x3508', label: t('A4 (300dpi)') },
+    { v: '512x512', label: t('أيقونة 512×512') }
+  ];
+}
 
 function newDocDialog() {
   const body = document.createElement('div');
   body.className = 'ctrls';
   const pre = document.createElement('select');
-  PRESETS.forEach(p => pre.add(new Option(p.label, p.v)));
+  presetDefs().forEach(p => pre.add(new Option(p.label, p.v)));
   const preRow = document.createElement('div'); preRow.className = 'crow';
-  preRow.innerHTML = '<span>المقاس</span>'; preRow.appendChild(pre);
+  const preLab = document.createElement('span'); preLab.textContent = t('المقاس');
+  preRow.append(preLab, pre);
 
-  const w = numRow('العرض (px)', 1280), h = numRow('الارتفاع (px)', 800);
+  const w = numRow(t('العرض (px)'), 1280), h = numRow(t('الارتفاع (px)'), 800);
   const bg = document.createElement('select');
-  [['transparent', 'شفاف'], ['#ffffff', 'أبيض'], ['#000000', 'أسود']].forEach(([v, l]) => bg.add(new Option(l, v)));
+  [['#ffffff', t('أبيض')], ['transparent', t('شفاف')], ['#000000', t('أسود')]]
+    .forEach(([v, l]) => bg.add(new Option(l, v)));
   const bgRow = document.createElement('div'); bgRow.className = 'crow';
-  bgRow.innerHTML = '<span>الخلفية</span>'; bgRow.appendChild(bg);
+  const bgLab = document.createElement('span'); bgLab.textContent = t('الخلفية');
+  bgRow.append(bgLab, bg);
 
   pre.onchange = () => {
     const [pw, ph] = pre.value.split('x');
@@ -81,137 +86,198 @@ function newDocDialog() {
   };
   body.append(preRow, w.row, h.row, bgRow);
   openModal({
-    title: 'مستند جديد', body,
+    title: t('مستند جديد'), body,
     buttons: [
-      { label: 'إلغاء', onClick: closeModal },
-      { label: 'إنشاء', primary: true, onClick: () => {
+      { label: t('إلغاء'), onClick: closeModal },
+      { label: t('إنشاء'), primary: true, onClick: () => {
         const nw = clamp(+w.input.value | 0, 1, 8000), nh = clamp(+h.input.value | 0, 1, 8000);
         const b = bg.value === 'transparent' ? null : bg.value;
         closeModal();
-        newTab(nw, nh, b, 'Untitled ' + (state.docs.length + 1));
+        newTab(nw, nh, b, t('Untitled') + ' ' + (state.docs.length + 1));
       } }
     ]
   });
 }
-function newTabDialog() { newDocDialog(); }
 
 function showShortcuts() {
   const body = document.createElement('div');
   body.className = 'ctrls shortcuts';
-  body.innerHTML = `
-    <p><b>الأدوات:</b> V نقل · M تحديد مستطيل · L لاسو · W تحديد سريع · C قص · B فرشاة · E ممحاة · S ختم · G تدرج · K دلو · T نص · P قلم · I قطارة · H يد · Z تكبير</p>
-    <p><b>عام:</b> Ctrl+Z تراجع · Ctrl+Shift+Z إعادة · Ctrl+N جديد · Ctrl+O فتح · Ctrl+S حفظ · Ctrl+J تكرار · Ctrl+A تحديد الكل · Ctrl+D إلغاء التحديد</p>
-    <p><b>العرض:</b> Ctrl+0 ملاءمة · Ctrl+= تكبير · Ctrl+- تصغير · عجلة الفأرة للتكبير · Space + سحب للتحريك</p>
-    <p><b>القص والقلم:</b> Enter للتطبيق · Esc للإلغاء · نقر مزدوج لإنهاء القلم</p>`;
-  openModal({ title: 'اختصارات لوحة المفاتيح', body, buttons: [{ label: 'إغلاق', primary: true, onClick: closeModal }] });
+  [
+    'Tools: V Move · M Marquee · L Lasso · W Quick Selection · C Crop · B Brush · E Eraser · S Clone · G Gradient · K Bucket · T Text · P Pen · I Eyedropper · H Hand · Z Zoom',
+    'General: Ctrl+Z Undo · Ctrl+Shift+Z Redo · Ctrl+N New · Ctrl+O Open · Ctrl+S Save · Ctrl+J Duplicate · Ctrl+A Select all · Ctrl+D Deselect',
+    'View: Ctrl+0 Fit · Ctrl+= Zoom in · Ctrl+- Zoom out · mouse wheel to zoom · Space + drag to pan',
+    'Crop & pen: Enter to apply · Esc to cancel · double-click to finish the pen path'
+  ].forEach(line => {
+    const p = document.createElement('p');
+    p.textContent = t(line);
+    body.appendChild(p);
+  });
+  openModal({ title: t('اختصارات لوحة المفاتيح'), body, buttons: [{ label: t('إغلاق'), primary: true, onClick: closeModal }] });
+}
+
+/* ---------- settings: language and theme ---------- */
+function openSettings() {
+  const body = document.createElement('div');
+  body.className = 'ctrls';
+
+  const langSel = document.createElement('select');
+  langSel.add(new Option('العربية', 'ar'));
+  langSel.add(new Option('English', 'en'));
+  langSel.value = LANG;
+
+  const themeSel = document.createElement('select');
+  themeSel.add(new Option(t('داكن'), 'dark'));
+  themeSel.add(new Option(t('فاتح'), 'light'));
+  themeSel.value = document.body.classList.contains('light') ? 'light' : 'dark';
+
+  const langRow = document.createElement('div'); langRow.className = 'crow';
+  const langLab = document.createElement('span'); langLab.textContent = t('اللغة');
+  langRow.append(langLab, langSel);
+  const themeRow = document.createElement('div'); themeRow.className = 'crow';
+  const themeLab = document.createElement('span'); themeLab.textContent = t('المظهر');
+  themeRow.append(themeLab, themeSel);
+  body.append(langRow, themeRow);
+
+  langSel.onchange = () => {
+    setLang(langSel.value);
+    applyAllText();
+    closeModal();
+    openSettings();
+  };
+  themeSel.onchange = () => setTheme(themeSel.value === 'light');
+
+  openModal({ title: t('الإعدادات'), body, buttons: [{ label: t('إغلاق'), primary: true, onClick: closeModal }] });
+}
+
+/* Re-render every piece of text after a language change */
+function applyAllText() {
+  document.documentElement.lang = LANG;
+  applyStatic();
+  buildMenus();
+  buildTools();
+  buildOpts();
+  refreshLayers();
+  renderTabs();
+  updateTitle();
 }
 
 /* ---------- menus ---------- */
-const MENUS = [
-  { label: 'File', items: [
-    { label: 'جديد…', key: 'Ctrl+N', fn: newDocDialog },
-    { label: 'فتح صورة…', key: 'Ctrl+O', fn: openFileDialog },
-    { label: 'فتح مشروع…', fn: () => $('projIn').click() },
-    { sep: 1 },
-    { label: 'حفظ المشروع', key: 'Ctrl+S', fn: () => saveProject(false) },
-    { label: 'حفظ باسم…', fn: () => saveProject(true) },
-    { sep: 1 },
-    { label: 'تصدير PNG', key: 'Ctrl+Shift+E', fn: () => exportAs('png') },
-    { label: 'تصدير JPG', fn: () => exportAs('jpg') },
-    { label: 'تصدير WebP', fn: () => exportAs('webp') }
-  ]},
-  { label: 'Edit', items: [
-    { label: 'تراجع', key: 'Ctrl+Z', fn: undo },
-    { label: 'إعادة', key: 'Ctrl+Shift+Z', fn: redo },
-    { sep: 1 },
-    { label: 'تحويل الطبقة…', fn: layerTransformDialog },
-    { label: 'حذف المحتوى المحدد', key: 'Del', fn: deleteSelectionContent }
-  ]},
-  { label: 'Image', items: [
-    { label: 'حجم الصورة…', fn: imageSizeDialog },
-    { label: 'حجم اللوحة…', fn: canvasSizeDialog },
-    { sep: 1 },
-    { label: 'تدوير 90° مع الساعة', fn: () => rotateDoc(90) },
-    { label: 'تدوير 90° عكس الساعة', fn: () => rotateDoc(-90) },
-    { label: 'قلب أفقي للمستند', fn: () => flipDoc(true) },
-    { label: 'قلب عمودي للمستند', fn: () => flipDoc(false) },
-    { sep: 1 },
-    { label: 'تطبيق القص', key: 'Enter', fn: applyCrop },
-    { label: 'إلغاء القص', key: 'Esc', fn: cancelCrop }
-  ]},
-  { label: 'Layer', items: [
-    { label: 'طبقة جديدة', key: 'Ctrl+Shift+N', fn: addLayer },
-    { label: 'مجموعة جديدة', fn: addGroup },
-    { label: 'تكرار الطبقة', key: 'Ctrl+J', fn: duplicateLayer },
-    { label: 'حذف الطبقة', fn: deleteLayer },
-    { label: 'إعادة تسمية…', fn: renameLayer },
-    { sep: 1 },
-    { label: 'نقل للأعلى', fn: () => moveLayer(1) },
-    { label: 'نقل للأسفل', fn: () => moveLayer(-1) },
-    { label: 'دمج مع ما تحتها', fn: mergeDown },
-    { label: 'تسطيح الكل', fn: flattenAll },
-    { sep: 1 },
-    { label: 'إضافة قناع', fn: addMask },
-    { label: 'حذف القناع', fn: removeMask },
-    { label: 'تحرير القناع (تبديل)', fn: toggleMaskEdit },
-    { sep: 1 },
-    { label: 'قلب أفقي للطبقة', fn: () => flipLayer(true) },
-    { label: 'قلب عمودي للطبقة', fn: () => flipLayer(false) },
-    { label: 'تعديل النص…', fn: editTextLayer }
-  ]},
-  { label: 'Select', items: [
-    { label: 'تحديد الكل', key: 'Ctrl+A', fn: selectAll },
-    { label: 'إلغاء التحديد', key: 'Ctrl+D', fn: clearSelection },
-    { label: 'عكس التحديد', fn: invertSelection }
-  ]},
-  { label: 'Filter', items: [
-    { label: 'السطوع والتباين…', fn: () => runFilter('brightness') },
-    { label: 'التعريض…', fn: () => runFilter('exposure') },
-    { label: 'الصبغة والتشبع…', fn: () => runFilter('hue') },
-    { label: 'درجة الحرارة…', fn: () => runFilter('temperature') },
-    { label: 'توازن الألوان…', fn: () => runFilter('colorBalance') },
-    { label: 'المستويات…', fn: () => runFilter('levels') },
-    { label: 'المنحنيات…', fn: openCurves },
-    { sep: 1 },
-    { label: 'طمس غاوسي…', fn: () => runFilter('gaussianBlur') },
-    { label: 'تحديد الحواف…', fn: () => runFilter('sharpen') },
-    { label: 'ضوضاء…', fn: () => runFilter('noise') },
-    { label: 'تدرج الرمادي', fn: () => runFilter('grayscale') },
-    { label: 'عكس الألوان', fn: () => runFilter('invert') },
-    { label: 'تظليل الحواف…', fn: () => runFilter('vignette') }
-  ]},
-  { label: 'View', items: [
-    { label: 'ملاءمة للشاشة', key: 'Ctrl+0', fn: resetView },
-    { label: 'تكبير', key: 'Ctrl+=', fn: () => zoomAt(1.25) },
-    { label: 'تصغير', key: 'Ctrl+-', fn: () => zoomAt(0.8) },
-    { label: '100%', fn: () => { state.zoom = 1; applyTransform(); } },
-    { sep: 1 },
-    { label: 'إظهار/إخفاء اللوحة الجانبية', fn: togglePanel },
-    { label: 'الوضع الفاتح/الداكن', fn: toggleTheme }
-  ]},
-  { label: 'Window', items: [
-    { label: 'مستند جديد (تبويب)', fn: newDocDialog },
-    { label: 'إغلاق التبويب الحالي', fn: () => closeTab(state.docIndex) }
-  ]},
-  { label: 'Help', items: [
-    { label: 'اختصارات لوحة المفاتيح', fn: showShortcuts },
-    { label: 'حول التطبيق', fn: () => toast('Photo Studio — تطبيق مستقل، غير تابع لـ Adobe') }
-  ]}
-];
+function menuDefs() {
+  return [
+    { label: 'File', items: [
+      { label: 'جديد…', key: 'Ctrl+N', fn: newDocDialog },
+      { label: 'فتح صورة…', key: 'Ctrl+O', fn: openFileDialog },
+      { label: 'فتح مشروع…', fn: () => $('projIn').click() },
+      { sep: 1 },
+      { label: 'حفظ المشروع', key: 'Ctrl+S', fn: () => saveProject(false) },
+      { label: 'حفظ باسم…', fn: () => saveProject(true) },
+      { sep: 1 },
+      { label: 'تصدير PNG', key: 'Ctrl+Shift+E', fn: () => exportAs('png') },
+      { label: 'تصدير JPG', fn: () => exportAs('jpg') },
+      { label: 'تصدير WebP', fn: () => exportAs('webp') },
+      { sep: 1 },
+      { label: 'الإعدادات…', fn: openSettings }
+    ]},
+    { label: 'Edit', items: [
+      { label: 'تراجع', key: 'Ctrl+Z', fn: undo },
+      { label: 'إعادة', key: 'Ctrl+Shift+Z', fn: redo },
+      { sep: 1 },
+      { label: 'تحويل الطبقة…', fn: layerTransformDialog },
+      { label: 'حذف المحتوى المحدد', key: 'Del', fn: deleteSelectionContent }
+    ]},
+    { label: 'Image', items: [
+      { label: 'حجم الصورة…', fn: imageSizeDialog },
+      { label: 'حجم اللوحة…', fn: canvasSizeDialog },
+      { sep: 1 },
+      { label: 'تدوير 90° مع الساعة', fn: () => rotateDoc(90) },
+      { label: 'تدوير 90° عكس الساعة', fn: () => rotateDoc(-90) },
+      { label: 'قلب أفقي للمستند', fn: () => flipDoc(true) },
+      { label: 'قلب عمودي للمستند', fn: () => flipDoc(false) },
+      { sep: 1 },
+      { label: 'تطبيق القص', key: 'Enter', fn: applyCrop },
+      { label: 'إلغاء القص', key: 'Esc', fn: cancelCrop }
+    ]},
+    { label: 'Layer', items: [
+      { label: 'طبقة جديدة', key: 'Ctrl+Shift+N', fn: addLayer },
+      { label: 'مجموعة جديدة', fn: addGroup },
+      { label: 'تكرار الطبقة', key: 'Ctrl+J', fn: duplicateLayer },
+      { label: 'حذف الطبقة', fn: deleteLayer },
+      { label: 'إعادة تسمية…', fn: renameLayer },
+      { sep: 1 },
+      { label: 'نقل للأعلى', fn: () => moveLayer(1) },
+      { label: 'نقل للأسفل', fn: () => moveLayer(-1) },
+      { label: 'دمج مع ما تحتها', fn: mergeDown },
+      { label: 'تسطيح الكل', fn: flattenAll },
+      { sep: 1 },
+      { label: 'إضافة قناع', fn: addMask },
+      { label: 'حذف القناع', fn: removeMask },
+      { label: 'تحرير القناع (تبديل)', fn: toggleMaskEdit },
+      { sep: 1 },
+      { label: 'قلب أفقي للطبقة', fn: () => flipLayer(true) },
+      { label: 'قلب عمودي للطبقة', fn: () => flipLayer(false) },
+      { label: 'تعديل النص…', fn: editTextLayer }
+    ]},
+    { label: 'Select', items: [
+      { label: 'تحديد الكل', key: 'Ctrl+A', fn: selectAll },
+      { label: 'إلغاء التحديد', key: 'Ctrl+D', fn: clearSelection },
+      { label: 'عكس التحديد', fn: invertSelection }
+    ]},
+    { label: 'Filter', items: [
+      { label: 'السطوع والتباين…', fn: () => runFilter('brightness') },
+      { label: 'التعريض…', fn: () => runFilter('exposure') },
+      { label: 'الصبغة والتشبع…', fn: () => runFilter('hue') },
+      { label: 'درجة الحرارة…', fn: () => runFilter('temperature') },
+      { label: 'توازن الألوان…', fn: () => runFilter('colorBalance') },
+      { label: 'المستويات…', fn: () => runFilter('levels') },
+      { label: 'المنحنيات…', fn: openCurves },
+      { sep: 1 },
+      { label: 'طمس غاوسي…', fn: () => runFilter('gaussianBlur') },
+      { label: 'تحديد الحواف…', fn: () => runFilter('sharpen') },
+      { label: 'ضوضاء…', fn: () => runFilter('noise') },
+      { label: 'تدرج الرمادي', fn: () => runFilter('grayscale') },
+      { label: 'عكس الألوان', fn: () => runFilter('invert') },
+      { label: 'تظليل الحواف…', fn: () => runFilter('vignette') }
+    ]},
+    { label: 'View', items: [
+      { label: 'ملاءمة للشاشة', key: 'Ctrl+0', fn: resetView },
+      { label: 'تكبير', key: 'Ctrl+=', fn: () => zoomAt(1.25) },
+      { label: 'تصغير', key: 'Ctrl+-', fn: () => zoomAt(0.8) },
+      { label: '100%', fn: () => { state.zoom = 1; applyTransform(); } },
+      { sep: 1 },
+      { label: 'إظهار/إخفاء اللوحة الجانبية', fn: togglePanel },
+      { label: 'الوضع الفاتح/الداكن', fn: toggleTheme }
+    ]},
+    { label: 'Window', items: [
+      { label: 'مستند جديد (تبويب)', fn: newDocDialog },
+      { label: 'إغلاق التبويب الحالي', fn: () => closeTab(state.docIndex) }
+    ]},
+    { label: 'Help', items: [
+      { label: 'اختصارات لوحة المفاتيح', fn: showShortcuts },
+      { label: 'حول التطبيق', fn: () => toast(t('Photo Studio is an independent app, not affiliated with Adobe.')) }
+    ]}
+  ];
+}
 
 function buildMenus() {
   const bar = $('menubar');
   bar.innerHTML = '';
-  MENUS.forEach(m => {
+  menuDefs().forEach(m => {
     const top = document.createElement('div');
     top.className = 'm';
-    top.textContent = m.label;
+    top.textContent = t(m.label);
     const dd = document.createElement('div');
     dd.className = 'dd';
     m.items.forEach(it => {
       if (it.sep) { const s = document.createElement('div'); s.className = 'sep'; dd.appendChild(s); return; }
       const row = document.createElement('div');
-      row.innerHTML = `${esc(it.label)}${it.key ? `<span>${esc(it.key)}</span>` : ''}`;
+      const label = document.createElement('span');
+      label.textContent = t(it.label);
+      row.appendChild(label);
+      if (it.key) {
+        const k = document.createElement('span');
+        k.textContent = it.key;
+        row.appendChild(k);
+      }
       row.onclick = e => { e.stopPropagation(); closeMenus(); it.fn(); };
       dd.appendChild(row);
     });
@@ -225,11 +291,19 @@ function buildMenus() {
     top.onmouseenter = () => { if (document.querySelector('#menubar .m.open')) { closeMenus(); top.classList.add('open'); } };
     bar.appendChild(top);
   });
-  const t = document.createElement('div');
-  t.className = 'title';
-  t.id = 'appTitle';
-  t.textContent = 'Photo Studio';
-  bar.appendChild(t);
+
+  const title = document.createElement('div');
+  title.className = 'title';
+  title.id = 'appTitle';
+  title.textContent = t('Photo Studio');
+  bar.appendChild(title);
+
+  const gear = document.createElement('button');
+  gear.className = 'gear';
+  gear.title = t('Settings');
+  gear.textContent = '⚙';
+  gear.onclick = e => { e.stopPropagation(); closeMenus(); openSettings(); };
+  bar.appendChild(gear);
 }
 function closeMenus() { document.querySelectorAll('#menubar .m.open').forEach(m => m.classList.remove('open')); }
 document.addEventListener('pointerdown', e => { if (!e.target.closest('#menubar')) closeMenus(); hideCtx(); });
@@ -238,12 +312,12 @@ document.addEventListener('pointerdown', e => { if (!e.target.closest('#menubar'
 function buildTools() {
   const box = $('tools');
   box.innerHTML = '';
-  TOOL_LIST.forEach(t => {
+  TOOL_LIST.forEach(tl => {
     const d = document.createElement('div');
-    d.className = 'tool' + (state.tool === t.id ? ' on' : '');
-    d.dataset.tip = `${t.name} (${t.key})`;
-    d.textContent = t.icon;
-    d.onclick = () => setTool(t.id);
+    d.className = 'tool' + (state.tool === tl.id ? ' on' : '');
+    d.dataset.tip = `${t(tl.name)} (${tl.key})`;
+    d.textContent = tl.icon;
+    d.onclick = () => setTool(tl.id);
     box.appendChild(d);
   });
 }
@@ -251,10 +325,18 @@ function buildTools() {
 /* ---------- options bar ---------- */
 function buildOpts() {
   const bar = $('opts');
-  const t = TOOL_LIST.find(x => x.id === state.tool);
+  const tl = TOOL_LIST.find(x => x.id === state.tool);
   const bounded = (id, label, min, max, val) =>
-    `${label} <input type="number" id="${id}" min="${min}" max="${max}" value="${OPT[id] ?? val}">`;
-  let html = `<span class="tname">${esc(t ? t.name : '')}</span>`;
+    `<span>${esc(t(label))}</span> <input type="number" id="${id}" min="${min}" max="${max}" value="${OPT[id] ?? val}">`;
+  const btn = (id, label, cls) => `<button id="${id}"${cls ? ` class="${cls}"` : ''}>${esc(t(label))}</button>`;
+  const hint = label => `<span class="hint">${esc(t(label))}</span>`;
+
+  let html = `<span class="tname">${esc(tl ? t(tl.name) : '')}</span>`;
+
+  if (state.maskEdit) {
+    html += `<span class="modeBanner">${esc(t('Mask editing: white reveals, black hides'))}
+      ${btn('exitMask', 'Exit mask editing', 'pri')}</span>`;
+  }
 
   switch (state.tool) {
     case 'brush': case 'eraser':
@@ -264,32 +346,36 @@ function buildOpts() {
     case 'clone':
       html += bounded('brushSize', 'الحجم', 1, 400, 12);
       html += bounded('brushAlpha', 'الشفافية %', 1, 100, 100);
-      html += `<button id="cloneArm">${state.cloneArm ? 'انقر على المصدر…' : 'تحديد المصدر'}</button>`;
-      html += `<span class="hint">${state.cloneSrc ? 'المصدر محدد' : 'لم يُحدد المصدر'}</span>`;
+      html += btn('cloneArm', state.cloneArm ? 'انقر على المصدر…' : 'تحديد المصدر');
+      html += hint(state.cloneSrc ? 'المصدر محدد' : 'لم يُحدد المصدر');
       break;
-    case 'quick': case 'bucket':
+    case 'quick':
+      html += bounded('tolerance', 'التسامح', 0, 255, 32);
+      html += btn('selAll', 'الكل') + btn('selNone', 'إلغاء التحديد') + btn('selInv', 'عكس');
+      break;
+    case 'bucket':
       html += bounded('tolerance', 'التسامح', 0, 255, 32);
       break;
     case 'text':
       html += bounded('textSize', 'الحجم', 6, 400, 48);
-      html += `<span class="hint">انقر على اللوحة لإضافة نص</span>`;
+      html += hint('انقر على اللوحة لإضافة نص');
       break;
     case 'pen':
       html += bounded('brushSize', 'سُمك الخط', 1, 200, 12);
-      html += `<button id="penDone">إنهاء المسار</button><button id="penCancel">إلغاء</button>`;
+      html += btn('penDone', 'إنهاء المسار') + btn('penCancel', 'إلغاء');
       break;
     case 'crop':
-      if (state.crop) html += `<button id="cropApply" class="pri">تطبيق (Enter)</button><button id="cropCancel">إلغاء (Esc)</button>`;
-      else html += `<span class="hint">اسحب لتحديد منطقة القص</span>`;
+      if (state.crop) html += btn('cropApply', 'تطبيق (Enter)', 'pri') + btn('cropCancel', 'إلغاء (Esc)');
+      else html += hint('اسحب لتحديد منطقة القص');
       break;
     case 'zoom':
-      html += `<button id="zoomOutToggle" class="${state.zoomOut ? 'on' : ''}">تصغير</button>`;
+      html += btn('zoomOutToggle', 'تصغير', state.zoomOut ? 'on' : '');
       break;
-    case 'marquee': case 'lasso': case 'quick':
-      html += `<button id="selAll">الكل</button><button id="selNone">إلغاء التحديد</button><button id="selInv">عكس</button>`;
+    case 'marquee': case 'lasso':
+      html += btn('selAll', 'الكل') + btn('selNone', 'إلغاء التحديد') + btn('selInv', 'عكس');
       break;
     case 'move':
-      html += `<span class="hint">اسحب الطبقة، أو المحدد إن وُجد</span>`;
+      html += hint('اسحب الطبقة، أو المحدد إن وُجد');
       break;
     default:
       break;
@@ -297,13 +383,13 @@ function buildOpts() {
 
   html += `<span class="sp"></span>
     <span class="colors">
-      <input type="color" id="fgColor" value="${state.fg}" title="لون المقدمة">
-      <input type="color" id="bgColor" value="${state.bg}" title="لون الخلفية">
-      <button id="swapColors" title="تبديل الألوان">⇄</button>
+      <input type="color" id="fgColor" value="${state.fg}" title="${esc(t('لون المقدمة'))}">
+      <input type="color" id="bgColor" value="${state.bg}" title="${esc(t('لون الخلفية'))}">
+      <button id="swapColors" title="${esc(t('تبديل الألوان'))}">⇄</button>
     </span>
     <span id="zoomInfo">${Math.round(state.zoom * 100)}%</span>
-    <button id="fitBtn">ملاءمة</button>
-    <button id="panelBtn" class="mobileOnly">الطبقات</button>`;
+    ${btn('fitBtn', 'ملاءمة')}
+    <button id="panelBtn" class="mobileOnly">${esc(t('الطبقات'))}</button>`;
   bar.innerHTML = html;
   bindOpts();
 }
@@ -320,7 +406,8 @@ function bindOpts() {
     e.oninput = () => { OPT[id] = parseFloat(e.value) || OPT[id]; };
   });
   const on = (id, fn) => { const e = $(id); if (e) e.onclick = fn; };
-  on('cloneArm', () => { state.cloneArm = !state.cloneArm; buildOpts(); toast(state.cloneArm ? 'انقر على نقطة المصدر' : 'أُلغي'); });
+  on('exitMask', exitMaskEdit);
+  on('cloneArm', () => { state.cloneArm = !state.cloneArm; buildOpts(); toast(state.cloneArm ? t('انقر على نقطة المصدر') : t('أُلغي')); });
   on('penDone', commitPen);
   on('penCancel', cancelPen);
   on('cropApply', applyCrop);
@@ -357,10 +444,9 @@ function refreshLayers() {
     box.appendChild(layerRow(i));
   }
   syncLayerCtl();
-  $('docInfo').textContent = `${state.W} × ${state.H} px · ${state.layers.filter(isRaster).length} layers`;
-  $('appTitle') && ($('appTitle').textContent = 'Photo Studio');
+  $('docInfo').textContent = infoText(state.W, state.H, state.layers.filter(isRaster).length);
   updateTitle();
-  if (window.renderTabs) renderTabs();
+  renderTabs();
 }
 
 function layerRow(i) {
@@ -372,7 +458,7 @@ function layerRow(i) {
   const eye = document.createElement('span');
   eye.className = 'eye';
   eye.textContent = l.visible ? '◉' : '○';
-  eye.title = 'إظهار / إخفاء';
+  eye.title = t('إظهار / إخفاء');
   eye.onclick = e => { e.stopPropagation(); toggleVisibility(i); };
   row.appendChild(eye);
 
@@ -405,7 +491,12 @@ function layerRow(i) {
     row.appendChild(b);
   }
 
-  row.onclick = () => { state.active = i; state.maskEdit = state.maskEdit && !!l.mask; refreshLayers(); };
+  /* selecting a layer always leaves mask-editing mode */
+  row.onclick = () => {
+    if (state.maskEdit) state.maskEdit = false;
+    state.active = i;
+    refreshLayers();
+  };
   row.ondblclick = () => { state.active = i; l.type === 'text' ? editTextLayer() : renameLayer(); };
   row.oncontextmenu = e => {
     e.preventDefault();
@@ -475,42 +566,43 @@ function hideCtx() { $('ctx').style.display = 'none'; }
 function layerMenuItems(i) {
   const l = state.layers[i];
   const items = [
-    { label: 'تكرار الطبقة', fn: duplicateLayer },
-    { label: 'إعادة تسمية…', fn: renameLayer },
-    { label: 'دمج مع ما تحتها', fn: mergeDown },
+    { label: t('تكرار الطبقة'), fn: duplicateLayer },
+    { label: t('إعادة تسمية…'), fn: renameLayer },
+    { label: t('دمج مع ما تحتها'), fn: mergeDown },
     { sep: 1 },
-    { label: 'طبقة جديدة', fn: addLayer },
-    { label: 'مجموعة جديدة', fn: addGroup },
-    { label: l.mask ? 'حذف القناع' : 'إضافة قناع', fn: l.mask ? removeMask : addMask },
-    { label: 'قلب أفقي', fn: () => flipLayer(true) },
+    { label: t('طبقة جديدة'), fn: addLayer },
+    { label: t('مجموعة جديدة'), fn: addGroup },
+    l.mask
+      ? { label: t('حذف القناع'), fn: removeMask }
+      : { label: t('إضافة قناع'), fn: addMask },
+    { label: t('قلب أفقي'), fn: () => flipLayer(true) },
     { sep: 1 },
-    { label: 'حذف', fn: deleteLayer }
+    { label: t('حذف'), fn: deleteLayer }
   ];
-  if (l.type === 'text') items.unshift({ label: 'تعديل النص…', fn: editTextLayer });
+  if (l.type === 'text') items.unshift({ label: t('تعديل النص…'), fn: editTextLayer });
   if (l.type !== 'group' && state.layers.find(g => g.type === 'group')) {
     items.push({ sep: 1 });
     state.layers.filter(g => g.type === 'group').forEach(g =>
-      items.push({ label: `نقل إلى «${g.name}»`, fn: () => setGroupOf(i, g.id) }));
-    if (l.group) items.push({ label: 'إخراج من المجموعة', fn: () => setGroupOf(i, null) });
+      items.push({ label: t('نقل إلى «{name}»', { name: g.name }), fn: () => setGroupOf(i, g.id) }));
+    if (l.group) items.push({ label: t('إخراج من المجموعة'), fn: () => setGroupOf(i, null) });
   }
   return items;
 }
 
 function stageMenuItems() {
-  const items = [
-    { label: 'تحديد الكل', fn: selectAll },
-    { label: 'إلغاء التحديد', fn: clearSelection },
-    { label: 'حذف المحتوى المحدد', fn: deleteSelectionContent },
+  return [
+    { label: t('تحديد الكل'), fn: selectAll },
+    { label: t('إلغاء التحديد'), fn: clearSelection },
+    { label: t('حذف المحتوى المحدد'), fn: deleteSelectionContent },
     { sep: 1 },
-    { label: 'تحويل الطبقة…', fn: layerTransformDialog },
-    { label: 'تكرار الطبقة', fn: duplicateLayer },
-    { label: 'طبقة جديدة', fn: addLayer },
+    { label: t('تحويل الطبقة…'), fn: layerTransformDialog },
+    { label: t('تكرار الطبقة'), fn: duplicateLayer },
+    { label: t('طبقة جديدة'), fn: addLayer },
     { sep: 1 },
-    { label: 'ملاءمة للشاشة', fn: resetView },
-    { label: 'تكبير', fn: () => zoomAt(1.25) },
-    { label: 'تصغير', fn: () => zoomAt(0.8) }
+    { label: t('ملاءمة للشاشة'), fn: resetView },
+    { label: t('تكبير'), fn: () => zoomAt(1.25) },
+    { label: t('تصغير'), fn: () => zoomAt(0.8) }
   ];
-  return items;
 }
 
 $('stage').addEventListener('contextmenu', e => {
@@ -547,14 +639,17 @@ function togglePanel() {
 })();
 
 /* ---------- theme ---------- */
+function setTheme(light) {
+  document.body.classList.toggle('light', light);
+  try { localStorage.setItem('ps-theme', light ? 'light' : 'dark'); } catch (e) {}
+}
 function applyTheme() {
-  const light = localStorage.getItem('ps-theme') === 'light';
+  let light = false;
+  try { light = localStorage.getItem('ps-theme') === 'light'; } catch (e) {}
   document.body.classList.toggle('light', light);
 }
 function toggleTheme() {
-  const light = !document.body.classList.contains('light');
-  document.body.classList.toggle('light', light);
-  try { localStorage.setItem('ps-theme', light ? 'light' : 'dark'); } catch (e) {}
+  setTheme(!document.body.classList.contains('light'));
 }
 
 /* ---------- document tabs ---------- */
@@ -565,24 +660,29 @@ function renderTabs() {
   state.docs.forEach((d, i) => {
     if (!d && i !== state.docIndex) return;
     const name = i === state.docIndex ? state.docName : d.name;
-    const t = document.createElement('div');
-    t.className = 'tab' + (i === state.docIndex ? ' on' : '');
-    t.innerHTML = `<span>${esc(name)}</span><b title="إغلاق">×</b>`;
-    t.onclick = () => switchDoc(i);
-    t.querySelector('b').onclick = e => { e.stopPropagation(); closeTab(i); };
-    bar.appendChild(t);
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (i === state.docIndex ? ' on' : '');
+    const label = document.createElement('span');
+    label.textContent = name;
+    const close = document.createElement('b');
+    close.title = t('إغلاق');
+    close.textContent = '×';
+    tab.append(label, close);
+    tab.onclick = () => switchDoc(i);
+    close.onclick = e => { e.stopPropagation(); closeTab(i); };
+    bar.appendChild(tab);
   });
   const add = document.createElement('div');
   add.className = 'tab add';
   add.textContent = '+';
-  add.title = 'مستند جديد';
+  add.title = t('مستند جديد');
   add.onclick = newDocDialog;
   bar.appendChild(add);
 }
 
 /* ---------- keyboard shortcuts ---------- */
 const TOOL_KEYS = {};
-TOOL_LIST.forEach(t => TOOL_KEYS[t.key.toLowerCase()] = t.id);
+TOOL_LIST.forEach(tl => TOOL_KEYS[tl.key.toLowerCase()] = tl.id);
 
 window.addEventListener('keydown', e => {
   if ($('modal').classList.contains('on')) {
@@ -618,6 +718,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (state.crop) return cancelCrop();
     if (state.pen) return cancelPen();
+    if (state.maskEdit) return exitMaskEdit();
     if (state.sel) return clearSelection();
   }
   if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -643,15 +744,15 @@ window.addEventListener('drop', e => {
   importFiles(files);
 });
 
-/* ---------- status / coords ---------- */
 window.addEventListener('resize', () => { if (state.layers.length) resetView(); });
 
 /* ---------- init ---------- */
 (function init() {
   applyTheme();
+  applyStatic();
   buildMenus();
   buildTools();
-  newDoc(1280, 800, null, 'Untitled 1');
+  newDoc(1280, 800, '#ffffff', t('Untitled') + ' 1');
   state.docs = [captureDoc()];
   state.docIndex = 0;
   setTool('move');

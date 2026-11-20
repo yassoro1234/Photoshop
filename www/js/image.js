@@ -23,13 +23,13 @@ function transformAll(newW, newH, fn) {
 function imageSizeDialog() {
   const body = document.createElement('div');
   body.className = 'ctrls';
-  const w = numRow('العرض (px)', state.W), h = numRow('الارتفاع (px)', state.H);
+  const w = numRow(t('العرض (px)'), state.W), h = numRow(t('الارتفاع (px)'), state.H);
   body.append(w.row, h.row);
   openModal({
-    title: 'حجم الصورة', body,
+    title: t('حجم الصورة'), body,
     buttons: [
-      { label: 'إلغاء', onClick: closeModal },
-      { label: 'تطبيق', primary: true, onClick: () => {
+      { label: t('إلغاء'), onClick: closeModal },
+      { label: t('تطبيق'), primary: true, onClick: () => {
         const nw = Math.max(1, +w.input.value | 0), nh = Math.max(1, +h.input.value | 0);
         transformAll(nw, nh, (c) => {
           const out = mkCanvas(nw, nh);
@@ -46,13 +46,13 @@ function imageSizeDialog() {
 function canvasSizeDialog() {
   const body = document.createElement('div');
   body.className = 'ctrls';
-  const w = numRow('العرض (px)', state.W), h = numRow('الارتفاع (px)', state.H);
+  const w = numRow(t('العرض (px)'), state.W), h = numRow(t('الارتفاع (px)'), state.H);
   body.append(w.row, h.row);
   openModal({
-    title: 'حجم اللوحة', body,
+    title: t('حجم اللوحة'), body,
     buttons: [
-      { label: 'إلغاء', onClick: closeModal },
-      { label: 'تطبيق', primary: true, onClick: () => {
+      { label: t('إلغاء'), onClick: closeModal },
+      { label: t('تطبيق'), primary: true, onClick: () => {
         const nw = Math.max(1, +w.input.value | 0), nh = Math.max(1, +h.input.value | 0);
         const ox = Math.round((nw - state.W) / 2), oy = Math.round((nh - state.H) / 2);
         transformAll(nw, nh, c => {
@@ -103,8 +103,8 @@ function flipDoc(horizontal) {
 /* Free transform for the active layer, with live preview */
 function layerTransformDialog() {
   const l = curRaster();
-  if (!l) return toast('اختر طبقة بكسل أولاً');
-  if (l.locked) return toast('الطبقة مقفلة');
+  if (!l) return toast(t('اختر طبقة بكسل أولاً'));
+  if (l.locked) return toast(t('الطبقة مقفلة'));
   const orig = cloneC(l.canvas);
   const P = { s: 100, r: 0, ox: 0, oy: 0 };
   const make = p => src => {
@@ -121,10 +121,10 @@ function layerTransformDialog() {
   const schedule = () => { if (!raf) raf = requestAnimationFrame(apply); };
 
   const controls = [
-    { k: 's', label: 'الحجم %', min: 10, max: 300, val: 100 },
-    { k: 'r', label: 'الدوران °', min: -180, max: 180, val: 0 },
-    { k: 'ox', label: 'إزاحة أفقية', min: -state.W, max: state.W, val: 0 },
-    { k: 'oy', label: 'إزاحة عمودية', min: -state.H, max: state.H, val: 0 }
+    { k: 's', label: t('الحجم %'), min: 10, max: 300, val: 100 },
+    { k: 'r', label: t('الدوران °'), min: -180, max: 180, val: 0 },
+    { k: 'ox', label: t('إزاحة أفقية'), min: -state.W, max: state.W, val: 0 },
+    { k: 'oy', label: t('إزاحة عمودية'), min: -state.H, max: state.H, val: 0 }
   ];
   const body = document.createElement('div');
   body.className = 'ctrls';
@@ -132,10 +132,10 @@ function layerTransformDialog() {
 
   const cancel = () => { if (raf) cancelAnimationFrame(raf); writeLayer(orig, orig); render(); };
   openModal({
-    title: 'تحويل الطبقة', body,
+    title: t('تحويل الطبقة'), body,
     buttons: [
-      { label: 'إلغاء', onClick: () => { cancel(); closeModal(); } },
-      { label: 'تطبيق', primary: true, onClick: () => {
+      { label: t('إلغاء'), onClick: () => { cancel(); closeModal(); } },
+      { label: t('تطبيق'), primary: true, onClick: () => {
         if (raf) { cancelAnimationFrame(raf); raf = 0; }
         writeLayer(orig, make(P)(orig));
         pushHistory(); render(); refreshLayers();
@@ -211,8 +211,8 @@ function drawTextLayer(l) {
 
 function editTextLayer() {
   const l = curRaster();
-  if (!l || l.type !== 'text' || !l.text) return toast('اختر طبقة نص');
-  const s = prompt('تعديل النص', l.text.str);
+  if (!l || l.type !== 'text' || !l.text) return toast(t('اختر طبقة نص'));
+  const s = prompt(t('تعديل النص'), l.text.str);
   if (s === null) return;
   l.text.str = s;
   l.name = s.slice(0, 24) || l.name;

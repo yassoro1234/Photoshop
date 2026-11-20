@@ -267,11 +267,11 @@ defTool('clone', {
     if (state.cloneArm || e.altKey) {
       state.cloneArm = false;
       state.cloneSrc = { x: p.x, y: p.y };
-      toast('تم تحديد نقطة المصدر');
+      toast(t('تم تحديد نقطة المصدر'));
       buildOpts();
       d.skip = true; return;
     }
-    if (!state.cloneSrc) { d.skip = true; toast('حدّد المصدر أولاً'); return; }
+    if (!state.cloneSrc) { d.skip = true; toast(t('حدّد المصدر أولاً')); return; }
     d.off = { x: state.cloneSrc.x - p.x, y: state.cloneSrc.y - p.y };
     d.snap = cloneC(l.canvas);
     d.painted = false;
@@ -345,7 +345,7 @@ defTool('text', {
   down(p, e, d) { d.start = p; },
   up(p, e, d) {
     if (Math.hypot(p.x - d.start.x, p.y - d.start.y) > 6) return;
-    const s = prompt('اكتب النص');
+    const s = prompt(t('اكتب النص'));
     if (s && s.trim()) addTextLayer(p, s);
   }
 });
@@ -365,7 +365,7 @@ defTool('eyedrop', {
     const x = Math.floor(p.x), y = Math.floor(p.y);
     if (x < 0 || y < 0 || x >= state.W || y >= state.H) return;
     const v = $('comp').getContext('2d').getImageData(x, y, 1, 1).data;
-    if (v[3] === 0) return toast('نقطة شفافة');
+    if (v[3] === 0) return toast(t('نقطة شفافة'));
     state.fg = '#' + [v[0], v[1], v[2]].map(n => n.toString(16).padStart(2, '0')).join('');
     syncColors();
   }
@@ -410,11 +410,11 @@ function cancelPen() { state.pen = null; drawOverlay(); }
 function setTool(id) {
   if (state.pen) cancelPen();
   state.tool = id;
-  const t = TOOL_LIST.find(x => x.id === id);
+  const tl = TOOL_LIST.find(x => x.id === id);
   $('stage').style.cursor = TOOLS[id].cursor || 'default';
   buildTools();
   buildOpts();
-  if (t) toast(t.name);
+  if (tl) toast(t(tl.name));
 }
 
 /* ---------- pointer manager ---------- */

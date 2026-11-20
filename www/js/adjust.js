@@ -52,12 +52,13 @@ function curveLUT(xs, ys) {
 }
 
 /* ---------- filter catalogue ---------- */
-const FILTERS = {
+function filterDefs() {
+  return {
   brightness: {
-    label: 'السطوع والتباين',
+    label: t('السطوع والتباين'),
     controls: [
-      { k: 'b', label: 'السطوع', min: -150, max: 150, val: 0 },
-      { k: 'c', label: 'التباين', min: -100, max: 100, val: 0 }
+      { k: 'b', label: t('السطوع'), min: -150, max: 150, val: 0 },
+      { k: 'c', label: t('التباين'), min: -100, max: 100, val: 0 }
     ],
     make: p => {
       const f = (259 * (p.c + 255)) / (255 * (259 - p.c));
@@ -71,7 +72,7 @@ const FILTERS = {
     }
   },
   exposure: {
-    label: 'التعريض',
+    label: t('التعريض'),
     controls: [{ k: 'e', label: 'EV', min: -3, max: 3, step: 0.05, val: 0 }],
     make: p => {
       const m = Math.pow(2, p.e);
@@ -83,11 +84,11 @@ const FILTERS = {
     }
   },
   hue: {
-    label: 'الصبغة والتشبع',
+    label: t('الصبغة والتشبع'),
     controls: [
-      { k: 'h', label: 'الصبغة', min: -180, max: 180, val: 0 },
-      { k: 's', label: 'التشبع', min: -100, max: 100, val: 0 },
-      { k: 'l', label: 'الإضاءة', min: -100, max: 100, val: 0 }
+      { k: 'h', label: t('الصبغة'), min: -180, max: 180, val: 0 },
+      { k: 's', label: t('التشبع'), min: -100, max: 100, val: 0 },
+      { k: 'l', label: t('الإضاءة'), min: -100, max: 100, val: 0 }
     ],
     make: p => pixelFilter(d => {
       for (let i = 0; i < d.length; i += 4) {
@@ -101,8 +102,8 @@ const FILTERS = {
     })
   },
   temperature: {
-    label: 'درجة الحرارة',
-    controls: [{ k: 't', label: 'دافئ ◂ ▸ بارد', min: -100, max: 100, val: 0 }],
+    label: t('درجة الحرارة'),
+    controls: [{ k: 't', label: t('دافئ ◂ ▸ بارد'), min: -100, max: 100, val: 0 }],
     make: p => pixelFilter(d => {
       for (let i = 0; i < d.length; i += 4) {
         d[i] += p.t * 0.5;
@@ -111,13 +112,13 @@ const FILTERS = {
     })
   },
   colorBalance: {
-    label: 'توازن الألوان',
+    label: t('توازن الألوان'),
     controls: [
-      { k: 'cr', label: 'سماوي ◂ ▸ أحمر', min: -100, max: 100, val: 0 },
-      { k: 'mg', label: 'أرجواني ◂ ▸ أخضر', min: -100, max: 100, val: 0 },
-      { k: 'yb', label: 'أصفر ◂ ▸ أزرق', min: -100, max: 100, val: 0 },
-      { k: 'tone', label: 'النطاق', type: 'select', val: 'mid',
-        options: [{ v: 'sh', label: 'الظلال' }, { v: 'mid', label: 'المتوسطات' }, { v: 'hi', label: 'الإضاءات' }] }
+      { k: 'cr', label: t('سماوي ◂ ▸ أحمر'), min: -100, max: 100, val: 0 },
+      { k: 'mg', label: t('أرجواني ◂ ▸ أخضر'), min: -100, max: 100, val: 0 },
+      { k: 'yb', label: t('أصفر ◂ ▸ أزرق'), min: -100, max: 100, val: 0 },
+      { k: 'tone', label: t('النطاق'), type: 'select', val: 'mid',
+        options: [{ v: 'sh', label: t('الظلال') }, { v: 'mid', label: t('المتوسطات') }, { v: 'hi', label: t('الإضاءات') }] }
     ],
     make: p => pixelFilter(d => {
       for (let i = 0; i < d.length; i += 4) {
@@ -133,11 +134,11 @@ const FILTERS = {
     })
   },
   levels: {
-    label: 'المستويات',
+    label: t('المستويات'),
     controls: [
-      { k: 'inB', label: 'نقطة السواد', min: 0, max: 254, val: 0 },
-      { k: 'inW', label: 'نقطة البياض', min: 1, max: 255, val: 255 },
-      { k: 'g', label: 'المنتصف (غاما)', min: 0.1, max: 3, step: 0.05, val: 1 }
+      { k: 'inB', label: t('نقطة السواد'), min: 0, max: 254, val: 0 },
+      { k: 'inW', label: t('نقطة البياض'), min: 1, max: 255, val: 255 },
+      { k: 'g', label: t('المنتصف (غاما)'), min: 0.1, max: 3, step: 0.05, val: 1 }
     ],
     make: p => {
       const lut = new Uint8ClampedArray(256);
@@ -154,8 +155,8 @@ const FILTERS = {
     }
   },
   gaussianBlur: {
-    label: 'طمس غاوسي',
-    controls: [{ k: 'r', label: 'نصف القطر', min: 0, max: 40, step: 0.5, val: 4 }],
+    label: t('طمس غاوسي'),
+    controls: [{ k: 'r', label: t('نصف القطر'), min: 0, max: 40, step: 0.5, val: 4 }],
     make: p => src => {
       const out = mkCanvas(src.width, src.height), x = out.getContext('2d');
       x.filter = `blur(${p.r}px)`;
@@ -165,8 +166,8 @@ const FILTERS = {
     }
   },
   sharpen: {
-    label: 'تحديد الحواف',
-    controls: [{ k: 'a', label: 'القوة', min: 0, max: 3, step: 0.05, val: 0.5 }],
+    label: t('تحديد الحواف'),
+    controls: [{ k: 'a', label: t('القوة'), min: 0, max: 3, step: 0.05, val: 0.5 }],
     make: p => src => {
       const out = cloneC(src), x = out.getContext('2d');
       const w = out.width, h = out.height;
@@ -186,8 +187,8 @@ const FILTERS = {
     }
   },
   noise: {
-    label: 'إضافة ضوضاء',
-    controls: [{ k: 'a', label: 'الكمية', min: 0, max: 100, val: 20 }],
+    label: t('إضافة ضوضاء'),
+    controls: [{ k: 'a', label: t('الكمية'), min: 0, max: 100, val: 20 }],
     make: p => pixelFilter(d => {
       for (let i = 0; i < d.length; i += 4) {
         if (d[i + 3] === 0) continue;
@@ -197,7 +198,7 @@ const FILTERS = {
     })
   },
   grayscale: {
-    label: 'تدرج الرمادي',
+    label: t('تدرج الرمادي'),
     controls: [],
     make: () => pixelFilter(d => {
       for (let i = 0; i < d.length; i += 4) {
@@ -207,7 +208,7 @@ const FILTERS = {
     })
   },
   invert: {
-    label: 'عكس الألوان',
+    label: t('عكس الألوان'),
     controls: [],
     make: () => pixelFilter(d => {
       for (let i = 0; i < d.length; i += 4) {
@@ -216,10 +217,10 @@ const FILTERS = {
     })
   },
   vignette: {
-    label: 'تظليل الحواف',
+    label: t('تظليل الحواف'),
     controls: [
-      { k: 'a', label: 'الكثافة', min: 0, max: 100, val: 40 },
-      { k: 'r', label: 'الحجم', min: 0.2, max: 1.2, step: 0.05, val: 0.7 }
+      { k: 'a', label: t('الكثافة'), min: 0, max: 100, val: 40 },
+      { k: 'r', label: t('الحجم'), min: 0.2, max: 1.2, step: 0.05, val: 0.7 }
     ],
     make: p => src => {
       const out = cloneC(src), x = out.getContext('2d');
@@ -237,6 +238,7 @@ const FILTERS = {
     }
   }
 };
+}
 
 /* ---------- applying results to the active layer ---------- */
 
@@ -262,14 +264,14 @@ function writeLayer(orig, out) {
 
 function canAdjust() {
   const l = curRaster();
-  if (!l) { toast('اختر طبقة بكسل أولاً'); return null; }
-  if (l.locked) { toast('الطبقة مقفلة'); return null; }
+  if (!l) { toast(t('اختر طبقة بكسل أولاً')); return null; }
+  if (l.locked) { toast(t('الطبقة مقفلة')); return null; }
   return l;
 }
 
 function runFilter(key) {
   const l = canAdjust(); if (!l) return;
-  const F = FILTERS[key];
+  const F = filterDefs()[key];
   if (!F.controls.length) {
     const orig = cloneC(l.canvas);
     writeLayer(orig, F.make({})(orig));
@@ -335,8 +337,8 @@ function liveDialog(title, controls, make) {
   openModal({
     title, body,
     buttons: [
-      { label: 'إلغاء', onClick: () => { cancel(); closeModal(); } },
-      { label: 'تطبيق', primary: true, onClick: () => {
+      { label: t('إلغاء'), onClick: () => { cancel(); closeModal(); } },
+      { label: t('تطبيق'), primary: true, onClick: () => {
         if (raf) { cancelAnimationFrame(raf); raf = 0; }
         writeLayer(orig, make(vals)(orig));
         pushHistory(); render(); refreshLayers();
@@ -421,15 +423,15 @@ function openCurves() {
   body.appendChild(cv);
   const hint = document.createElement('div');
   hint.className = 'hint';
-  hint.textContent = 'اسحب النقاط لتعديل المنحنى';
+  hint.textContent = t('اسحب النقاط لتعديل المنحنى');
   body.appendChild(hint);
 
   const cancel = () => { if (raf) cancelAnimationFrame(raf); writeLayer(orig, orig); render(); };
   openModal({
-    title: 'المنحنيات', body,
+    title: t('المنحنيات'), body,
     buttons: [
-      { label: 'إلغاء', onClick: () => { cancel(); closeModal(); } },
-      { label: 'تطبيق', primary: true, onClick: () => {
+      { label: t('إلغاء'), onClick: () => { cancel(); closeModal(); } },
+      { label: t('تطبيق'), primary: true, onClick: () => {
         if (raf) { cancelAnimationFrame(raf); raf = 0; }
         const lut = curveLUT(xs, ys);
         writeLayer(orig, pixelFilter(d => {
