@@ -49,10 +49,14 @@ jobs:
           sed -i "s/versionCode 1/versionCode ${GITHUB_RUN_NUMBER}/" android/app/build.gradle
           if [ -n "$KEYSTORE_B64" ]; then
             # Remove any whitespace/line breaks introduced when the secret was pasted
-            echo "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > android/app/release.keystore \
-              || { echo "::error::ANDROID_KEYSTORE_BASE64 is not valid base64. Re-copy keystore.b64 as one line."; exit 1; }
-            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/android/app/release.keystore" >> "$GITHUB_ENV"
-            echo "Release signing enabled"
+            if echo "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > android/app/release.keystore 2>/dev/null \
+               && keytool -list -keystore android/app/release.keystore -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1; then
+              echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/android/app/release.keystore" >> "$GITHUB_ENV"
+              echo "Release signing enabled"
+            else
+              echo "::warning::ANDROID_KEYSTORE_BASE64 or ANDROID_KEYSTORE_PASSWORD is invalid. Building an unsigned debug APK instead. Re-create the secret from keystore.b64."
+              rm -f android/app/release.keystore
+            fi
           else
             echo "No keystore secret found: building a debug APK"
           fi
