@@ -93,7 +93,7 @@ function newDocDialog() {
         const nw = clamp(+w.input.value | 0, 1, 8000), nh = clamp(+h.input.value | 0, 1, 8000);
         const b = bg.value === 'transparent' ? null : bg.value;
         closeModal();
-        newTab(nw, nh, b, t('Untitled') + ' ' + (state.docs.length + 1));
+        newTab(nw, nh, b, 'Untitled ' + (state.docs.length + 1));
       } }
     ]
   });
@@ -286,9 +286,9 @@ function buildMenus() {
       e.stopPropagation();
       const open = top.classList.contains('open');
       closeMenus();
-      if (!open) top.classList.add('open');
+      if (!open) { top.classList.add('open'); placeDropdown(top); }
     };
-    top.onmouseenter = () => { if (document.querySelector('#menubar .m.open')) { closeMenus(); top.classList.add('open'); } };
+    top.onmouseenter = () => { if (document.querySelector('#menubar .m.open')) { closeMenus(); top.classList.add('open'); placeDropdown(top); } };
     bar.appendChild(top);
   });
 
@@ -477,7 +477,7 @@ function layerRow(i) {
 
   const name = document.createElement('span');
   name.className = 'name';
-  name.textContent = (l.type === 'group' ? '📁 ' : '') + l.name;
+  name.textContent = (l.type === 'group' ? '📁 ' : '') + layerName(l);
   row.appendChild(name);
 
   const badges = [];
@@ -583,7 +583,7 @@ function layerMenuItems(i) {
   if (l.type !== 'group' && state.layers.find(g => g.type === 'group')) {
     items.push({ sep: 1 });
     state.layers.filter(g => g.type === 'group').forEach(g =>
-      items.push({ label: t('نقل إلى «{name}»', { name: g.name }), fn: () => setGroupOf(i, g.id) }));
+      items.push({ label: t('نقل إلى «{name}»', { name: layerName(g) }), fn: () => setGroupOf(i, g.id) }));
     if (l.group) items.push({ label: t('إخراج من المجموعة'), fn: () => setGroupOf(i, null) });
   }
   return items;
@@ -613,9 +613,25 @@ $('stage').addEventListener('contextmenu', e => {
 
 /* ---------- panels ---------- */
 function togglePanel() {
-  if (window.matchMedia('(max-width: 820px)').matches) $('side').classList.toggle('open');
-  else $('ws').classList.toggle('hidePanel');
+  if (window.matchMedia('(max-width: 820px)').matches) {
+    const open = !$('side').classList.contains('open');
+    $('side').classList.toggle('open', open);
+    document.body.classList.toggle('panelOpen', open);
+    return;
+  }
+  $('ws').classList.toggle('hidePanel');
   setTimeout(resetView, 280);
+}
+
+/* On phones the menu list is clipped by the scrolling menu strip, so position it fixed under the bar */
+function placeDropdown(top) {
+  const dd = top.querySelector('.dd');
+  if (!dd || !window.matchMedia('(max-width: 820px)').matches) return;
+  const r = top.getBoundingClientRect();
+  const bar = $('menubar').getBoundingClientRect();
+  dd.style.position = 'fixed';
+  dd.style.top = bar.bottom + 'px';
+  dd.style.left = Math.max(4, Math.min(r.left, window.innerWidth - dd.offsetWidth - 4)) + 'px';
 }
 
 /* resizable side panel (desktop) */
@@ -663,7 +679,7 @@ function renderTabs() {
     const tab = document.createElement('div');
     tab.className = 'tab' + (i === state.docIndex ? ' on' : '');
     const label = document.createElement('span');
-    label.textContent = name;
+    label.textContent = docLabel(name);
     const close = document.createElement('b');
     close.title = t('إغلاق');
     close.textContent = '×';
@@ -752,7 +768,7 @@ window.addEventListener('resize', () => { if (state.layers.length) resetView(); 
   applyStatic();
   buildMenus();
   buildTools();
-  newDoc(1280, 800, '#ffffff', t('Untitled') + ' 1');
+  newDoc(1280, 800, '#ffffff', 'Untitled 1');
   state.docs = [captureDoc()];
   state.docIndex = 0;
   setTool('move');

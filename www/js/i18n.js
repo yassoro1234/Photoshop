@@ -257,6 +257,10 @@ const I18N = {
     'copy': 'copy',
     'Flattened': 'Flattened',
     'Photo Studio': 'Photo Studio',
+    'Layer {n}': 'Layer {n}',
+    'Group {n}': 'Group {n}',
+    'Copy of {base}': 'Copy of {base}',
+    'Untitled {n}': 'Untitled {n}',
     'Apply': 'Apply',
     'Cancel': 'Cancel',
     'Close': 'Close',
@@ -285,6 +289,10 @@ const I18N = {
     'copy': 'نسخة',
     'Flattened': 'مدموج',
     'Photo Studio': 'استوديو الصور',
+    'Layer {n}': 'طبقة {n}',
+    'Group {n}': 'مجموعة {n}',
+    'Copy of {base}': 'نسخة من {base}',
+    'Untitled {n}': 'بدون عنوان {n}',
     'Move': 'نقل',
     'Marquee Selection': 'تحديد مستطيل',
     'Lasso': 'لاسو',
@@ -335,7 +343,7 @@ try { LANG = localStorage.getItem('ps-lang') === 'en' ? 'en' : 'ar'; } catch (e)
 function t(key, vars) {
   const table = I18N[LANG] || {};
   let s = table[key] !== undefined ? table[key] : key;
-  if (vars) for (const k in vars) s = s.split('{' + k + '}').join(vars[k]);
+  if (vars) for (const k in vars) if (vars[k] !== undefined) s = s.split('{' + k + '}').join(vars[k]);
   return s;
 }
 
@@ -355,4 +363,10 @@ function setLang(lang) {
 /* Document size line for the status bar, with singular/plural layer label */
 function infoText(w, h, n) {
   return t(n === 1 ? '{w} × {h} px · {n} layer' : '{w} × {h} px · {n} layers', { w, h, n });
+}
+
+/* Document tab names are stored in English ("Untitled 2") and shown in the current language */
+function docLabel(name) {
+  const m = /^(?:Untitled|بدون عنوان)(?: (\d+))?$/.exec(name || '');
+  return m ? t('Untitled {n}', { n: m[1] || '' }) : name;
 }

@@ -29,6 +29,24 @@ function isLayerVisible(l) {
   return true;
 }
 
+/* Default layer names are stored as translation keys so they follow the language setting */
+function nameLayer(l, key, n, ref) {
+  l.nameKey = key;
+  if (n !== undefined) l.nameN = n;
+  if (ref) l.nameRef = ref;
+  return l;
+}
+function layerName(l) {
+  if (!l) return '';
+  if (!l.nameKey) return l.name;
+  const vars = { n: l.nameN };
+  if (l.nameRef) {
+    const r = state.layers.find(x => x.id === l.nameRef);
+    vars.base = r ? layerName(r) : '';
+  }
+  return t(l.nameKey, vars);
+}
+
 function metaOf(l) {
   const { canvas, ctx, mask, ...meta } = l;
   return meta;
@@ -265,7 +283,7 @@ function newDoc(w = 1280, h = 800, bg = null, name = 'Untitled') {
   state.undo = []; state.redo = [];
   state.sel = null; state.crop = null; state.preview = null; state.pen = null;
   state.docName = name; state.dirty = false;
-  const l = makeLayer(t('Background'));
+  const l = nameLayer(makeLayer(''), 'Background');
   if (bg) { l.ctx.fillStyle = bg; l.ctx.fillRect(0, 0, w, h); }
   state.layers.push(l);
   state.active = 0;
@@ -283,14 +301,14 @@ function insertAboveActive(l) {
 function addLayer() {
   if (!state.layers.length) return newDoc();
   const a = cur();
-  const l = makeLayer(t('Layer') + ' ' + uid());
+  const l = nameLayer(makeLayer(''), 'Layer {n}', uid());
   l.group = a && a.type === 'group' ? a.id : (a ? a.group : null);
   insertAboveActive(l);
   pushHistory(); render(); refreshLayers();
 }
 function addGroup() {
   if (!state.layers.length) return newDoc();
-  insertAboveActive(makeGroup(t('Group') + ' ' + uid()));
+  insertAboveActive(nameLayer(makeGroup(''), 'Group {n}', uid()));
   pushHistory(); render(); refreshLayers();
 }
 function deleteLayer() {
@@ -306,7 +324,7 @@ function deleteLayer() {
 }
 function duplicateLayer() {
   const src = curRaster(); if (!src) return;
-  const l = makeLayer(src.name + ' ' + t('copy'), src.type, state.W, state.H);
+  const l = nameLayer(makeLayer('', src.type, state.W, state.H), 'Copy of {base}', undefined, src.id);
   l.ctx.drawImage(src.canvas, 0, 0);
   Object.assign(l, { opacity: src.opacity, blend: src.blend, group: src.group, text: src.text ? { ...src.text } : null });
   if (src.mask) l.mask = cloneC(src.mask);
@@ -315,8 +333,8 @@ function duplicateLayer() {
 }
 function renameLayer() {
   const l = cur(); if (!l) return;
-  const n = prompt(t('اسم الطبقة'), l.name);
-  if (n && n.trim()) { l.name = n.trim(); pushHistory(); refreshLayers(); }
+  const n = prompt(t('اسم الطبقة'), layerName(l));
+  if (n && n.trim()) { l.name = n.trim(); delete l.nameKey; delete l.nameN; delete l.nameRef; pushHistory(); refreshLayers(); }
 }
 function moveLayer(dir) {
   const i = state.active, j = i + dir;
@@ -347,7 +365,7 @@ function mergeDown() {
 function flattenAll() {
   const r = state.layers.filter(isRaster);
   if (r.length < 2) return;
-  const out = makeLayer(t('Flattened'));
+  const out = nameLayer(makeLayer(''), 'Flattened');
   for (const l of r) if (isLayerVisible(l)) {
     out.ctx.globalAlpha = l.opacity;
     out.ctx.globalCompositeOperation = l.blend;
@@ -408,5 +426,5 @@ function setGroupOf(i, groupId) {
 
 /* ---------- title / status ---------- */
 function updateTitle() {
-  document.title = (state.dirty ? '● ' : '') + state.docName + ' — ' + t('Photo Studio');
+  document.title = (state.dirty ? '● ' : '') + docLabel(state.docName) + ' — ' + t('Photo Studio');
 }
