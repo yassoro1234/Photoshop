@@ -419,13 +419,21 @@ function updatePlayhead() {
   const ph = $('asPlayhead');
   if (ph) ph.style.left = (NAME_W + ANIM.frame * CELL) + 'px';
   const tl = $('asTl');
-  if (tl && !ANIM.scrubbing) {
-    const x = NAME_W + ANIM.frame * CELL;
+  if (!tl) return;
+  const x = NAME_W + ANIM.frame * CELL;
+  if (!ANIM.scrubbing) {
     const shown = x - tl.scrollLeft;
     if (shown < NAME_W + 12 || shown > tl.clientWidth - 24) {
       tl.scrollLeft = Math.max(0, x - NAME_W - tl.clientWidth / 3);
     }
   }
+  syncPlayheadVisible();
+}
+/* the playhead lives only over the frame track: hide it when it would sit on the layer names */
+function syncPlayheadVisible() {
+  const ph = $('asPlayhead'), tl = $('asTl');
+  if (!ph || !tl) return;
+  ph.style.display = (NAME_W + ANIM.frame * CELL - tl.scrollLeft < NAME_W) ? 'none' : '';
 }
 /* dragging the ruler or the playhead moves the frame without rebuilding the timeline */
 function scrubFrame(e) {
@@ -801,6 +809,9 @@ function newDrawLayer() {
 }
 function paintStart(d) {
   let l = selLayer();
+  // the eraser only removes pixels from an existing drawing layer; it never creates one
+  if (ANIM.tool === 'eraser' && (!l || l.type !== 'draw')) return toast(t('اختر طبقة رسم أولاً'));
+  if (ANIM.tool === 'eraser' && l.lock) return toast(t('الطبقة مقفلة'));
   if (!l || l.type !== 'draw' || l.lock) l = newDrawLayer();
   else if (l.lock) return toast(t('الطبقة مقفلة'));
   pushUndo();
@@ -1243,7 +1254,8 @@ function bindStage() {
 }
 /* the grip above the timeline drags the bottom panel taller or shorter */
 function bottomRange() {
-  return { min: 150, max: Math.max(170, Math.round(innerHeight - 140)) };
+  // phone in landscape: a shorter minimum so the stage keeps most of the height
+  return { min: innerHeight < 500 ? 130 : 150, max: Math.max(170, Math.round(innerHeight - 140)) };
 }
 function setBottomHeight(h, save) {
   const { min, max } = bottomRange();
@@ -1257,7 +1269,7 @@ function bindGrip() {
   const g = $('asGrip'), bottom = $('asBottom');
   let st = null, saved = 0;
   try { saved = +localStorage.getItem('cs-anim-bottom') || 0; } catch (_) {}
-  setBottomHeight(saved || innerHeight * 0.38, false);
+  setBottomHeight(saved || innerHeight * (innerHeight < 500 ? 0.3 : 0.38), false);
   g.addEventListener('pointerdown', e => {
     g.setPointerCapture(e.pointerId);
     st = { y: e.clientY, h: bottom.offsetHeight };
@@ -1284,11 +1296,12 @@ function zoomBy(f) {
   renderStage();
 }
 function setAnimTool(id) {
+  if (id !== ANIM.tool) ANIM.brushBarHidden = false;   // choosing a tool brings its settings back
   ANIM.tool = id;
   document.querySelectorAll('#asTools button').forEach(b => b.classList.toggle('on', b.dataset.tool === id));
   const bb = $('asBrushBar');
   if (id !== 'pen') ANIM.pen = null;
-  if (bb) bb.classList.toggle('on', ['brush', 'eraser', 'pen', 'bucket'].includes(id));
+  if (bb) bb.classList.toggle('on', !ANIM.brushBarHidden && ['brush', 'eraser', 'pen', 'bucket'].includes(id));
   if (bb) bb.classList.toggle('pen', id === 'pen');
   $('asCv').style.cursor = id === 'hand' ? 'grab' : id === 'zoom' ? 'zoom-in' : 'crosshair';
 }
@@ -1656,8 +1669,9 @@ function buildAnimUI() {
 
   const bar = el('div', '');
   bar.id = 'asBrushBar';
-  bar.innerHTML = `<label>${t('حجم')} <input type="range" id="asBrushSize" min="2" max="200" value="${ANIM.brush.size}"> <span id="asBrushVal">${ANIM.brush.size}</span></label><label>${t('لون')} <button id="asBrushColor" class="swatchBtn" style="background:${ANIM.brush.color}"></button></label><button id="asPenDone" class="penOnly">✓ ${t('إنهاء')}</button><button id="asPenCancel" class="penOnly">✕ ${t('إلغاء')}</button>`;
+  bar.innerHTML = `<label>${t('حجم')} <input type="range" id="asBrushSize" min="2" max="200" value="${ANIM.brush.size}"> <span id="asBrushVal">${ANIM.brush.size}</span></label><label>${t('لون')} <button id="asBrushColor" class="swatchBtn" style="background:${ANIM.brush.color}"></button></label><button id="asPenDone" class="penOnly">✓ ${t('إنهاء')}</button><button id="asPenCancel" class="penOnly">✕ ${t('إلغاء')}</button><button id="asBrushClose" title="${t('إخفاء')}">⌄</button>`;
   $('asStageWrap').appendChild(bar);
+  $('asBrushClose').onclick = () => { ANIM.brushBarHidden = true; bar.classList.remove('on'); };
   $('asBrushSize').oninput = e => { ANIM.brush.size = +e.target.value; $('asBrushVal').textContent = e.target.value; };
   $('asBrushColor').onclick = () => openColorPicker({
     value: ANIM.brush.color,
@@ -1667,6 +1681,7 @@ function buildAnimUI() {
   $('asPenDone').onclick = () => penFinish(false);
   $('asPenCancel').onclick = penCancel;
 
+  $('asTl').addEventListener('scroll', syncPlayheadVisible);
   $('asHome').onclick = () => closeAnimScreen();
   $('asName').onclick = renameAnim;
   $('asPanelBtn').onclick = () => $('asSide').classList.toggle('open');

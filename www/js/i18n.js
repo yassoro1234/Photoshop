@@ -453,6 +453,8 @@ const I18N = {
     'تعبئة': 'Fill',
     'قطارة الألوان': 'Eyedropper',
     'إنهاء': 'Done',
+    'إخفاء': 'Hide',
+    'اختر طبقة رسم أولاً': 'Select a drawing layer first',
     'حجم': 'Size',
     'لون': 'Color',
     'فرشاة': 'Brush',
