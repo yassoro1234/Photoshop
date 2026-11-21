@@ -61,6 +61,7 @@ function layerPropsAt(l, frame) {
   let i = 0;
   while (i < k.length - 1 && k[i + 1].f <= frame) i++;
   const a = k[i], b = k[i + 1];
+  if (b.blank) return { ...a.p };
   const e = easeValue(a, (frame - a.f) / (b.f - a.f));
   const out = {};
   AP_PROPS.forEach(q => { out[q] = a.p[q] + (b.p[q] - a.p[q]) * e; });
@@ -71,6 +72,13 @@ function segmentAt(l, frame) {
   const k = l.kfs;
   for (let i = 0; i < k.length - 1; i++) if (frame >= k[i].f && frame < k[i + 1].f) return i;
   return -1;
+}
+/* A blank keyframe hides the layer from its frame until the next keyframe */
+function layerShownAt(l, frame) {
+  if (!l.vis) return false;
+  let cur = null;
+  for (const k of l.kfs) { if (k.f <= frame) cur = k; else break; }
+  return !(cur && cur.blank);
 }
 function ensureKey(l, frame) {
   const ex = l.kfs.find(k => k.f === frame);
@@ -136,7 +144,7 @@ function renameTextLayer(l) { l.name = (l.str.split('\n')[0] || t('نص')).slice
 /* ---------- drawing ---------- */
 function drawLayer(c, l, frame) {
   const p = layerPropsAt(l, frame);
-  if (!l.vis || p.op <= 0) return;
+  if (!layerShownAt(l, frame) || p.op <= 0) return;
   c.save();
   c.globalAlpha = clamp(p.op, 0, 1);
   c.translate(ANIM.W / 2 + p.x, ANIM.H / 2 + p.y);
@@ -279,7 +287,7 @@ function stageToDoc(clientX, clientY) {
 function hitLayer(d, frame) {
   for (let i = ANIM.layers.length - 1; i >= 0; i--) {
     const l = ANIM.layers[i];
-    if (!l.vis) continue;
+    if (!layerShownAt(l, frame)) continue;
     const p = layerPropsAt(l, frame);
     const dx = d.x - (ANIM.W / 2 + p.x), dy = d.y - (ANIM.H / 2 + p.y);
     const a = -p.rot * Math.PI / 180;
@@ -357,6 +365,38 @@ function addKeyHere() {
   ensureKey(l, ANIM.frame);
   renderAll();
 }
+function blankKeyHere() {
+  const l = selLayer();
+  if (!l) return toast(t('اختر طبقة أولاً'));
+  if (l.lock) return toast(t('الطبقة مقفلة'));
+  pushUndo();
+  const k = ensureKey(l, ANIM.frame);
+  if (k.blank) delete k.blank; else k.blank = true;
+  renderAll();
+}
+let keyClip = null;
+function copyKeyHere() {
+  const l = selLayer();
+  if (!l) return toast(t('اختر طبقة أولاً'));
+  const k = keyAtFrame(l);
+  keyClip = k
+    ? { p: { ...k.p }, ease: k.ease, bez: k.bez ? k.bez.slice() : null, blank: !!k.blank }
+    : { p: layerPropsAt(l, ANIM.frame), ease: 'linear', bez: null, blank: false };
+  toast(t('تم نسخ المفتاح'));
+}
+function pasteKeyHere() {
+  const l = selLayer();
+  if (!l) return toast(t('اختر طبقة أولاً'));
+  if (!keyClip) return toast(t('لا يوجد مفتاح منسوخ'));
+  if (l.lock) return toast(t('الطبقة مقفلة'));
+  pushUndo();
+  const k = ensureKey(l, ANIM.frame);
+  k.p = { ...keyClip.p };
+  k.ease = keyClip.ease;
+  if (keyClip.bez) k.bez = keyClip.bez.slice();
+  if (keyClip.blank) k.blank = true; else delete k.blank;
+  renderAll();
+}
 function deleteKeyHere() {
   const l = selLayer(), k = keyAtFrame(l);
   if (!k) return toast(t('لا يوجد مفتاح عند هذا الإطار'));
@@ -427,7 +467,7 @@ function renderTimeline() {
       setFrame((e.clientX - r.left) / CELL);
     };
     l.kfs.forEach(kf => {
-      const d = el('div', 'kf' + (kf.ease !== 'linear' ? ' eased' : ''));
+      const d = el('div', 'kf' + (kf.ease !== 'linear' ? ' eased' : '') + (kf.blank ? ' blank' : ''));
       d.style.left = (kf.f * CELL) + 'px';
       d.title = `${kf.f + 1}`;
       d.onpointerdown = e => startKeyDrag(e, l, kf);
@@ -1075,6 +1115,9 @@ function buildAnimUI() {
         <span id="asFrameLabel" class="asFrame">1 / 1</span>
         <button id="asKey" title="${t('إضافة مفتاح عند المؤشر')}">◆ ${t('مفتاح')}</button>
         <button id="asDelKey" title="${t('حذف المفتاح عند المؤشر')}">◇</button>
+        <button id="asBlank" title="${t('مفتاح فارغ: يخفي الطبقة من هذا الإطار')}">□</button>
+        <button id="asCopyKey" title="${t('نسخ المفتاح')}">⧉</button>
+        <button id="asPasteKey" title="${t('لصق المفتاح')}">📋</button>
         <button id="asLoop" class="on" title="${t('تكرار التشغيل')}">⟳</button>
         <label class="asField">FPS <input id="asFps" type="number" min="1" max="120" step="1"></label>
         <label class="asField">${t('الإطارات')} <input id="asFrames" type="number" min="1" max="36000" step="1"></label>
@@ -1119,6 +1162,9 @@ function buildAnimUI() {
   $('asStop').onclick = animStop;
   $('asKey').onclick = addKeyHere;
   $('asDelKey').onclick = deleteKeyHere;
+  $('asBlank').onclick = blankKeyHere;
+  $('asCopyKey').onclick = copyKeyHere;
+  $('asPasteKey').onclick = pasteKeyHere;
   $('asLoop').onclick = () => { ANIM.loop = !ANIM.loop; $('asLoop').classList.toggle('on', ANIM.loop); };
   $('asGraphBtn').onclick = toggleGraph;
   $('asFps').onchange = () => { pushUndo(); ANIM.fps = clamp(+$('asFps').value | 0, 1, 120); renderAll(); };

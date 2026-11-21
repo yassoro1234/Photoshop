@@ -75,6 +75,7 @@
 .tick { position: absolute; top: 4px; font-size: 10px; color: var(--mut); transform: translateX(-50%); pointer-events: none; }
 .kf { position: absolute; top: 8px; width: 10px; height: 10px; background: var(--txt); transform: translateX(-5px) rotate(45deg); border-radius: 1px; cursor: grab; z-index: 2; }
 .kf.eased { background: var(--acc); }
+.kf.blank { background: transparent; border: 1.5px solid var(--txt); width: 8px; height: 8px; }
 .kf:hover { outline: 2px solid var(--acc); outline-offset: 1px; }
 .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff5a4f; z-index: 6; pointer-events: none; }
 

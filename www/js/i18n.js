@@ -429,7 +429,13 @@ const I18N = {
     'نافذة': 'Window',
     'مساعدة': 'Help',
     'تحديد': 'Select',
-    'يد': 'Hand'
+    'يد': 'Hand',
+    'مفتاح فارغ: يخفي الطبقة من هذا الإطار': 'Blank key: hides the layer from this frame',
+    'نسخ المفتاح': 'Copy key',
+    'لصق المفتاح': 'Paste key',
+    'تم نسخ المفتاح': 'Key copied',
+    'لا يوجد مفتاح منسوخ': 'No key copied',
+    'اسحب لتغيير الارتفاع': 'Drag to change height'
   },
 
   ar: {
