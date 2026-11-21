@@ -176,7 +176,7 @@ function renderStage() {
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.fillStyle = '#161616';
   c.fillRect(0, 0, r.width, r.height);
-  const k = Math.min(r.width / ANIM.W, r.height / ANIM.H) * ANIM.zoom;
+  const k = Math.min((r.width - 48) / ANIM.W, (r.height - 48) / ANIM.H) * ANIM.zoom;
   ANIM.k = k;
   c.translate(r.width / 2 + ANIM.panX, r.height / 2 + ANIM.panY);
   c.scale(k, k);
@@ -188,21 +188,84 @@ function renderStage() {
 }
 function drawSelection(c, l, k) {
   const p = layerPropsAt(l, ANIM.frame);
+  const hs = handleList(l, p);
+  // outline in document space, so its width does not grow with the layer's scale
+  const corners = hs.filter(h => h.kind === 'corner');
   c.save();
-  c.translate(ANIM.W / 2 + p.x, ANIM.H / 2 + p.y);
-  c.rotate(p.rot * Math.PI / 180);
-  c.scale(p.sx, p.sy);
   c.strokeStyle = '#4f9cff';
   c.lineWidth = 1.5 / k;
   c.setLineDash([6 / k, 4 / k]);
-  c.strokeRect(-l.w / 2, -l.h / 2, l.w, l.h);
-  c.setLineDash([]);
+  c.beginPath();
+  corners.forEach((h, i) => (i ? c.lineTo(h.x, h.y) : c.moveTo(h.x, h.y)));
+  c.closePath();
+  c.stroke();
+  c.restore();
+
+  const top = hs.find(h => h.kind === 'edge' && h.iy === -1 && h.ix === 0);
+  const rot = hs.find(h => h.kind === 'rot');
+  c.save();
+  c.strokeStyle = '#4f9cff';
+  c.lineWidth = 1.5 / k;
+  c.beginPath(); c.moveTo(top.x, top.y); c.lineTo(rot.x, rot.y); c.stroke();
   c.fillStyle = '#fff';
-  const hs = 7 / k;
-  [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sy]) => {
-    c.fillRect(sx * l.w / 2 - hs / 2, sy * l.h / 2 - hs / 2, hs, hs);
+  c.beginPath(); c.arc(rot.x, rot.y, 7 / k, 0, Math.PI * 2); c.fill(); c.stroke();
+  const s = 11 / k;
+  hs.filter(h => h.kind !== 'rot').forEach(h => {
+    c.fillStyle = '#fff';
+    c.fillRect(h.x - s / 2, h.y - s / 2, s, s);
+    c.strokeRect(h.x - s / 2, h.y - s / 2, s, s);
   });
   c.restore();
+}
+/* handles in document space: corners and edges stretch the layer, the round one rotates it */
+function handleList(l, p) {
+  const a = p.rot * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+  const cx = ANIM.W / 2 + p.x, cy = ANIM.H / 2 + p.y;
+  const at = (ix, iy) => {
+    const lx = ix * l.w / 2 * p.sx, ly = iy * l.h / 2 * p.sy;
+    return { x: cx + lx * co - ly * si, y: cy + lx * si + ly * co };
+  };
+  const out = [];
+  [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([ix, iy]) => out.push({ ix, iy, kind: 'corner', ...at(ix, iy) }));
+  [[0, -1], [1, 0], [0, 1], [-1, 0]].forEach(([ix, iy]) => out.push({ ix, iy, kind: 'edge', ...at(ix, iy) }));
+  const t = at(0, -1), off = 40 / ANIM.k;
+  out.push({ ix: 0, iy: -1, kind: 'rot', x: t.x + si * off, y: t.y - co * off });
+  return out;
+}
+function handleAt(l, d) {
+  const p = layerPropsAt(l, ANIM.frame);
+  const r = 24 / ANIM.k;
+  let best = null, bd = r;
+  handleList(l, p).forEach(h => {
+    const dd = Math.hypot(d.x - h.x, d.y - h.y);
+    if (dd <= bd) { bd = dd; best = h; }
+  });
+  return best;
+}
+function handleDrag(st, d) {
+  const { l, h, p0, cx, cy } = st;
+  if (h.kind === 'rot') {
+    const ang = Math.atan2(d.x - cx, -(d.y - cy)) * 180 / Math.PI;
+    let dd = ang - st.a0;
+    if (dd > 180) dd -= 360;
+    if (dd < -180) dd += 360;
+    let r = p0.rot + dd;
+    const sn = Math.round(r / 15) * 15;
+    if (Math.abs(r - sn) < 3) r = sn;
+    setProp(l, 'rot', r);
+    return;
+  }
+  if (h.kind === 'corner') {
+    const f = Math.max(0.05, Math.hypot(d.x - cx, d.y - cy) / st.r0);
+    setProp(l, 'sx', p0.sx * f);
+    setProp(l, 'sy', p0.sy * f);
+    return;
+  }
+  // edge: stretch along one local axis so the edge follows the pointer
+  const a = -p0.rot * Math.PI / 180, vx = d.x - cx, vy = d.y - cy;
+  const ux = vx * Math.cos(a) - vy * Math.sin(a), uy = vx * Math.sin(a) + vy * Math.cos(a);
+  if (h.ix) setProp(l, 'sx', Math.max(0.02, Math.abs(ux) / (l.w / 2)));
+  if (h.iy) setProp(l, 'sy', Math.max(0.02, Math.abs(uy) / (l.h / 2)));
 }
 
 /* ---------- coordinates and hit testing ---------- */
@@ -619,6 +682,19 @@ function bindStage() {
       setAnimTool('select');
       return;
     }
+    const sl = selLayer();
+    if (ANIM.tool === 'select' && sl && !sl.lock) {
+      const h = handleAt(sl, d);
+      if (h) {
+        pushUndo();
+        const p0 = layerPropsAt(sl, ANIM.frame);
+        const cx = ANIM.W / 2 + p0.x, cy = ANIM.H / 2 + p0.y;
+        stageDrag = { mode: 'handle', l: sl, h, p0, cx, cy,
+          a0: Math.atan2(d.x - cx, -(d.y - cy)) * 180 / Math.PI,
+          r0: Math.max(1e-3, Math.hypot(d.x - cx, d.y - cy)) };
+        return;
+      }
+    }
     const hit = hitLayer(d, ANIM.frame);
     if (!hit) { selectLayer(null); return; }
     selectLayer(hit.id);
@@ -635,6 +711,7 @@ function bindStage() {
       return;
     }
     const d = stageToDoc(e.clientX, e.clientY);
+    if (stageDrag.mode === 'handle') { handleDrag(stageDrag, d); renderAll(); return; }
     const { l, p0 } = stageDrag;
     setProp(l, 'x', p0.x + d.x - stageDrag.sx);
     setProp(l, 'y', p0.y + d.y - stageDrag.sy);
@@ -665,6 +742,28 @@ function bindStage() {
   const gEnd = () => { gh = null; };
   gc.addEventListener('pointerup', gEnd);
   gc.addEventListener('pointercancel', gEnd);
+  bindGrip();
+}
+/* the grip above the timeline drags the bottom panel taller or shorter */
+function bindGrip() {
+  const g = $('asGrip'), bottom = $('asBottom');
+  let st = null;
+  try { const saved = +localStorage.getItem('cs-anim-bottom'); if (saved) bottom.style.height = saved + 'px'; } catch (_) {}
+  g.addEventListener('pointerdown', e => {
+    g.setPointerCapture(e.pointerId);
+    st = { y: e.clientY, h: bottom.offsetHeight };
+  });
+  g.addEventListener('pointermove', e => {
+    if (!st) return;
+    const h = clamp(st.h + (st.y - e.clientY), 150, Math.round(window.innerHeight * 0.7));
+    bottom.style.height = h + 'px';
+    renderStage();
+    renderGraph();
+    try { localStorage.setItem('cs-anim-bottom', String(h)); } catch (_) {}
+  });
+  const end = () => { st = null; };
+  g.addEventListener('pointerup', end);
+  g.addEventListener('pointercancel', end);
 }
 function zoomBy(f) {
   ANIM.zoom = clamp(ANIM.zoom * f, 0.2, 8);
@@ -968,7 +1067,8 @@ function buildAnimUI() {
         <section class="asSec"><header class="asSecHead">${t('المكتبة')}</header><div id="asLibBody" class="asBody"></div></section>
       </aside>
     </div>
-    <div id="asBottom">
+      <div id="asBottom">
+      <div id="asGrip" title="${t('اسحب لتغيير الارتفاع')}"><span></span></div>
       <div id="asTlBar">
         <button id="asStop" title="${t('إيقاف وإرجاع للبداية')}">■</button>
         <button id="asPlay" title="${t('تشغيل')}">▶</button>
