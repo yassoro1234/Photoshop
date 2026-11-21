@@ -63,42 +63,6 @@ function presetDefs() {
   ];
 }
 
-function newDocDialog() {
-  const body = document.createElement('div');
-  body.className = 'ctrls';
-  const pre = document.createElement('select');
-  presetDefs().forEach(p => pre.add(new Option(p.label, p.v)));
-  const preRow = document.createElement('div'); preRow.className = 'crow';
-  const preLab = document.createElement('span'); preLab.textContent = t('المقاس');
-  preRow.append(preLab, pre);
-
-  const w = numRow(t('العرض (px)'), 1280), h = numRow(t('الارتفاع (px)'), 800);
-  const bg = document.createElement('select');
-  [['#ffffff', t('أبيض')], ['transparent', t('شفاف')], ['#000000', t('أسود')]]
-    .forEach(([v, l]) => bg.add(new Option(l, v)));
-  const bgRow = document.createElement('div'); bgRow.className = 'crow';
-  const bgLab = document.createElement('span'); bgLab.textContent = t('الخلفية');
-  bgRow.append(bgLab, bg);
-
-  pre.onchange = () => {
-    const [pw, ph] = pre.value.split('x');
-    w.input.value = pw; h.input.value = ph;
-  };
-  body.append(preRow, w.row, h.row, bgRow);
-  openModal({
-    title: t('مستند جديد'), body,
-    buttons: [
-      { label: t('إلغاء'), onClick: closeModal },
-      { label: t('إنشاء'), primary: true, onClick: () => {
-        const nw = clamp(+w.input.value | 0, 1, 8000), nh = clamp(+h.input.value | 0, 1, 8000);
-        const b = bg.value === 'transparent' ? null : bg.value;
-        closeModal();
-        newTab(nw, nh, b, 'Untitled ' + (state.docs.length + 1));
-      } }
-    ]
-  });
-}
-
 function showShortcuts() {
   const body = document.createElement('div');
   body.className = 'ctrls shortcuts';
@@ -116,39 +80,6 @@ function showShortcuts() {
 }
 
 /* ---------- settings: language and theme ---------- */
-function openSettings() {
-  const body = document.createElement('div');
-  body.className = 'ctrls';
-
-  const langSel = document.createElement('select');
-  langSel.add(new Option('العربية', 'ar'));
-  langSel.add(new Option('English', 'en'));
-  langSel.value = LANG;
-
-  const themeSel = document.createElement('select');
-  themeSel.add(new Option(t('داكن'), 'dark'));
-  themeSel.add(new Option(t('فاتح'), 'light'));
-  themeSel.value = document.body.classList.contains('light') ? 'light' : 'dark';
-
-  const langRow = document.createElement('div'); langRow.className = 'crow';
-  const langLab = document.createElement('span'); langLab.textContent = t('اللغة');
-  langRow.append(langLab, langSel);
-  const themeRow = document.createElement('div'); themeRow.className = 'crow';
-  const themeLab = document.createElement('span'); themeLab.textContent = t('المظهر');
-  themeRow.append(themeLab, themeSel);
-  body.append(langRow, themeRow);
-
-  langSel.onchange = () => {
-    setLang(langSel.value);
-    applyAllText();
-    closeModal();
-    openSettings();
-  };
-  themeSel.onchange = () => setTheme(themeSel.value === 'light');
-
-  openModal({ title: t('الإعدادات'), body, buttons: [{ label: t('إغلاق'), primary: true, onClick: closeModal }] });
-}
-
 /* Re-render every piece of text after a language change */
 function applyAllText() {
   document.documentElement.lang = LANG;
@@ -158,6 +89,7 @@ function applyAllText() {
   buildOpts();
   refreshLayers();
   renderTabs();
+  refreshHomeIfOpen();
   updateTitle();
 }
 
@@ -165,12 +97,14 @@ function applyAllText() {
 function menuDefs() {
   return [
     { label: 'File', items: [
-      { label: 'جديد…', key: 'Ctrl+N', fn: newDocDialog },
+      { label: 'الصفحة الرئيسية', fn: showHome },
+      { label: 'جديد…', key: 'Ctrl+N', fn: openNewProjectDialog },
       { label: 'فتح صورة…', key: 'Ctrl+O', fn: openFileDialog },
       { label: 'فتح مشروع…', fn: () => $('projIn').click() },
       { sep: 1 },
       { label: 'حفظ المشروع', key: 'Ctrl+S', fn: () => saveProject(false) },
       { label: 'حفظ باسم…', fn: () => saveProject(true) },
+      { label: 'تصدير ملف المشروع…', fn: exportProjectFile },
       { sep: 1 },
       { label: 'تصدير PNG', key: 'Ctrl+Shift+E', fn: () => exportAs('png') },
       { label: 'تصدير JPG', fn: () => exportAs('jpg') },
@@ -249,7 +183,7 @@ function menuDefs() {
       { label: 'الوضع الفاتح/الداكن', fn: toggleTheme }
     ]},
     { label: 'Window', items: [
-      { label: 'مستند جديد (تبويب)', fn: newDocDialog },
+      { label: 'مستند جديد (تبويب)', fn: openNewProjectDialog },
       { label: 'إغلاق التبويب الحالي', fn: () => closeTab(state.docIndex) }
     ]},
     { label: 'Help', items: [
@@ -296,7 +230,7 @@ function buildMenus() {
   const title = document.createElement('div');
   title.className = 'title';
   title.id = 'appTitle';
-  title.textContent = t('Photo Studio');
+  title.textContent = 'CREATIVE STUDIO';
   bar.appendChild(title);
 
   const gear = document.createElement('button');
@@ -304,7 +238,13 @@ function buildMenus() {
   gear.title = t('Settings');
   gear.textContent = '⚙';
   gear.onclick = e => { e.stopPropagation(); closeMenus(); openSettings(); };
-  bar.appendChild(gear);
+  const homeBtn = document.createElement('button');
+  homeBtn.className = 'gear';
+  homeBtn.title = t('الصفحة الرئيسية');
+  homeBtn.setAttribute('aria-label', t('الصفحة الرئيسية'));
+  homeBtn.textContent = '⌂';
+  homeBtn.onclick = e => { e.stopPropagation(); closeMenus(); showHome(); };
+  bar.append(homeBtn, gear);
 }
 function closeMenus() { document.querySelectorAll('#menubar .m.open').forEach(m => m.classList.remove('open')); }
 document.addEventListener('pointerdown', e => { if (!e.target.closest('#menubar')) closeMenus(); hideCtx(); });
@@ -698,7 +638,7 @@ function renderTabs() {
   add.className = 'tab add';
   add.textContent = '+';
   add.title = t('مستند جديد');
-  add.onclick = newDocDialog;
+  add.onclick = openNewProjectDialog;
   bar.appendChild(add);
 }
 
@@ -722,7 +662,7 @@ window.addEventListener('keydown', e => {
   if (ctrl) {
     const map = {
       z: () => (e.shiftKey ? redo() : undo()),
-      y: redo, n: () => (e.shiftKey ? addLayer() : newDocDialog()),
+      y: redo, n: () => (e.shiftKey ? addLayer() : openNewProjectDialog()),
       o: openFileDialog, s: () => saveProject(false),
       a: selectAll, d: clearSelection, j: duplicateLayer, g: addGroup, t: freeTransformCurrent,
       '0': resetView, '=': () => zoomAt(1.25), '+': () => zoomAt(1.25), '-': () => zoomAt(0.8)
@@ -785,4 +725,5 @@ window.addEventListener('resize', () => { if (state.layers.length) resetView(); 
   renderTabs();
   resetView();
   refreshLayers();
+  if (getSettings().startHome) showHome();
 })();

@@ -270,6 +270,7 @@ function pushHistory() {
   state.redo = [];
   state.dirty = true;
   updateTitle();
+  scheduleAutosave();
 }
 function undo() {
   if (state.undo.length < 2) return;
@@ -289,7 +290,7 @@ function newDoc(w = 1280, h = 800, bg = null, name = 'Untitled') {
   state.layers = []; state.active = -1;
   state.undo = []; state.redo = [];
   state.sel = null; state.crop = null; state.preview = null; state.pen = null; state.ft = null;
-  state.docName = name; state.dirty = false;
+  state.docName = name; state.dirty = false; state.projectId = null;
   const l = nameLayer(makeLayer(''), 'Background');
   if (bg) { l.ctx.fillStyle = bg; l.ctx.fillRect(0, 0, w, h); }
   state.layers.push(l);
@@ -433,5 +434,5 @@ function setGroupOf(i, groupId) {
 
 /* ---------- title / status ---------- */
 function updateTitle() {
-  document.title = (state.dirty ? '● ' : '') + docLabel(state.docName) + ' — ' + t('Photo Studio');
+  document.title = (state.dirty ? '● ' : '') + docLabel(state.docName) + ' — CREATIVE STUDIO';
 }

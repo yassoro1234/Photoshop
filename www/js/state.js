@@ -6,6 +6,7 @@ const state = {
   zoom: 1, panX: 0, panY: 0,
   tool: 'move',
   fg: '#000000', bg: '#ffffff',
+  projectId: null,     // library id of the open project (null until first saved or autosaved)
   sampleSrc: 'all',    // eyedropper source: 'all' layers or 'layer' (current)
   ft: null,            // free transform in progress {id, src, box, sx, sy, rot, ox, oy}
   sel: null,           // {mask:canvas, poly:[{x,y}]|null, box:{x,y,w,h}}

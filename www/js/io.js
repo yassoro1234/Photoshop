@@ -80,25 +80,21 @@ function exportAs(kind, quality = 0.92) {
 }
 
 /* ---------- project save / open (.psproj.json) ---------- */
+/* Save writes into the project library; "save as" asks for a new name first */
 async function saveProject(asNew) {
-  if (asNew || !state.docName || state.docName === 'Untitled') {
+  if (asNew) {
     const n = prompt(t('اسم المشروع'), state.docName);
     if (!n) return;
     state.docName = n.trim() || 'Untitled';
+    state.projectId = null;
   }
-  const data = {
-    format: 'photostudio-project', version: 1,
-    W: state.W, H: state.H, name: state.docName, active: state.active,
-    layers: state.layers.map(l => ({
-      meta: metaOf(l),
-      png: l.canvas ? l.canvas.toDataURL('image/png') : null,
-      mask: l.mask ? l.mask.toDataURL('image/png') : null
-    }))
-  };
-  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-  state.dirty = false; updateTitle();
+  return saveToLibrary(true, false);
+}
+
+/* Exports the project as a .psproj.json file (portable, same format as the library) */
+function exportProjectFile() {
+  const blob = new Blob([JSON.stringify(serializeProject())], { type: 'application/json' });
   saveBlob(blob, `${state.docName}.psproj.json`).catch(() => toast(t('فشل الحفظ')));
-  toast(t('تم حفظ المشروع'));
 }
 
 function loadImage(src) {
@@ -110,36 +106,14 @@ function loadImage(src) {
   });
 }
 
+/* Opens a .psproj.json file into the current document (as an unsaved copy in the library) */
 async function openProjectFile(file) {
   try {
     const obj = JSON.parse(await file.text());
-    if (obj.format !== 'photostudio-project') throw new Error('bad');
-    const layers = [];
-    for (const e of obj.layers) {
-      const l = { ...e.meta };
-      if (e.png) {
-        l.canvas = mkCanvas(obj.W, obj.H);
-        l.ctx = l.canvas.getContext('2d');
-        const im = await loadImage(e.png);
-        l.ctx.drawImage(im, 0, 0);
-      }
-      l.mask = null;
-      if (e.mask) {
-        l.mask = mkCanvas(obj.W, obj.H);
-        l.mask.getContext('2d').drawImage(await loadImage(e.mask), 0, 0);
-      }
-      layers.push(l);
-    }
-    state.undo = []; state.redo = [];
-    state.sel = null; state.crop = null; state.preview = null; state.pen = null;
-    state.W = obj.W; state.H = obj.H;
-    state.layers = layers;
-    state.active = clamp(obj.active ?? 0, 0, layers.length - 1);
-    state.docName = obj.name || file.name.replace(/\.psproj\.json$/, '');
-    resizeStage();
-    pushHistory();
-    resetView();
-    render(); refreshLayers();
+    flushAutosave();
+    await loadProjectData(obj, { fallbackName: file.name.replace(/\.psproj\.json$/, '') });
+    renderTabs();
+    hideHome();
     toast(t('تم فتح المشروع'));
   } catch (err) {
     toast(t('ملف المشروع غير صالح'));
@@ -154,10 +128,11 @@ $('projIn').addEventListener('change', e => {
 
 /* ---------- document tabs (multiple open projects) ---------- */
 function captureDoc() {
-  return { name: state.docName, snap: snapshot(), undo: state.undo, redo: state.redo, dirty: state.dirty };
+  return { name: state.docName, projectId: state.projectId, snap: snapshot(), undo: state.undo, redo: state.redo, dirty: state.dirty };
 }
 function restoreDoc(d) {
   state.docName = d.name;
+  state.projectId = d.projectId || null;
   state.undo = d.undo; state.redo = d.redo; state.dirty = d.dirty;
   restoreSnap(d.snap);
   resetView();
@@ -165,11 +140,13 @@ function restoreDoc(d) {
 }
 function switchDoc(i) {
   if (i === state.docIndex || !state.docs[i]) return;
+  flushAutosave();
   state.docs[state.docIndex] = captureDoc();
   state.docIndex = i;
   restoreDoc(state.docs[i]);
 }
 function newTab(w, h, bg, name) {
+  flushAutosave();
   state.docs[state.docIndex] = captureDoc();
   state.docs.push(null);
   state.docIndex = state.docs.length - 1;
@@ -179,6 +156,7 @@ function newTab(w, h, bg, name) {
 }
 function closeTab(i) {
   if (state.docs.length <= 1) return toast(t('لا يمكن إغلاق آخر مستند'));
+  flushAutosave();
   state.docs.splice(i, 1);
   let ni = state.docIndex;
   if (i < state.docIndex) ni--;

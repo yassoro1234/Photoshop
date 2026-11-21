@@ -1,0 +1,69 @@
+/* ===== Home screen, project library, New Project and Settings dialogs ===== */
+
+#home { display: none; position: fixed; inset: 0; z-index: 55; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: var(--bg); color: var(--txt); padding: 0 0 env(safe-area-inset-bottom); }
+#home.on { display: block; animation: homeIn .22s var(--ease); }
+@keyframes homeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+#home button { white-space: nowrap; font: inherit; color: var(--txt); background: var(--panel); border: 1px solid var(--hi);
+  border-radius: 8px; padding: 8px 14px; cursor: pointer; transition: background .15s, border-color .15s, transform .1s; }
+#home button:hover { background: var(--panel2); border-color: #4a4a4a; }
+#home button:active { transform: scale(.97); }
+#home button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+#home button.pri { background: var(--acc); border-color: var(--acc); color: var(--acc-txt); }
+#home button.pri:hover { filter: brightness(1.08); }
+
+/* header */
+.hHead { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.hLogo { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; flex: none;
+  background: linear-gradient(135deg, #3d6fa3, #1f3d5c); color: #fff; font: 700 13px system-ui, sans-serif; letter-spacing: .5px; }
+.hName { font: 700 15px system-ui, sans-serif; letter-spacing: 2px; white-space: nowrap; }
+.hHead .sp { flex: 1; }
+.hBtn { padding: 7px 12px !important; font-size: 14px !important; }
+
+/* studio cards */
+.studios { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; padding: 18px 16px 6px;
+  max-width: 1100px; margin: 0 auto; }
+.studioCard { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 20px;
+  background: var(--panel); border: 1px solid var(--hi); border-radius: 14px; transition: border-color .18s, transform .18s; }
+.studioCard:not(.soon):hover { border-color: var(--acc); transform: translateY(-2px); }
+.studioCard h2 { margin: 4px 0 0; font: 700 16px system-ui, sans-serif; letter-spacing: 1.5px; }
+.studioCard p { margin: 0; color: var(--mut); font-size: 13px; line-height: 1.5; }
+.studioCard button { align-self: flex-start; margin-top: auto; }
+.studioCard.soon { opacity: .75; }
+.sIcon { width: 52px; height: 52px; color: var(--acc); }
+.sIcon svg { width: 100%; height: 100%; }
+.badge { align-self: flex-start; margin-top: auto; font-size: 12px; color: var(--mut); border: 1px dashed var(--hi);
+  border-radius: 999px; padding: 4px 10px; }
+
+/* library */
+.library { max-width: 1100px; margin: 0 auto; padding: 8px 16px 40px; }
+.libGroup { margin-top: 18px; }
+.libGroup h3 { margin: 0 0 10px; font: 600 13px system-ui, sans-serif; color: var(--mut); letter-spacing: .4px; }
+.pGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.pCard { position: relative; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--hi);
+  border-radius: 10px; overflow: hidden; cursor: pointer; transition: border-color .15s, transform .12s; }
+.pCard:hover { border-color: var(--acc); transform: translateY(-1px); }
+.pCard:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+.pThumb { height: 120px; display: grid; place-items: center; background:
+  repeating-conic-gradient(#3a3a3a 0 25%, #2c2c2c 0 50%) 0 0 / 16px 16px; }
+.pThumb img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.pInfo { padding: 8px 40px 10px 10px; min-width: 0; }
+.pName { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pMeta { margin-top: 3px; font-size: 11px; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pMore { position: absolute; right: 4px; bottom: 4px; width: 32px; height: 32px; padding: 0 !important; border: none !important;
+  background: transparent !important; font-size: 18px; line-height: 1; }
+.empty { margin: 4px 0; color: var(--mut); font-size: 13px; }
+
+/* dialogs */
+.secHead { margin: 12px 0 4px; padding-bottom: 3px; border-bottom: 1px solid var(--line); color: var(--acc); font-size: 12px; font-weight: 600; }
+.newProj .seg { display: flex; gap: 6px; }
+.newProj .seg button { flex: 1; padding: 9px 8px; line-height: 1.2; }
+.newProj .seg button.segOn { background: var(--acc); border-color: var(--acc); color: var(--acc-txt); }
+.newProj .seg button:disabled { opacity: .5; cursor: not-allowed; }
+.newProj input[type=text], .newProj input[type=number] { width: 100%; min-width: 0; box-sizing: border-box;
+  background: var(--input); color: var(--txt); border: 1px solid var(--hi); border-radius: 6px; padding: 6px 8px; font: inherit; }
+.newProj input[type=color] { width: 56px; height: 30px; padding: 0; border: 1px solid var(--hi); border-radius: 6px; background: none; }
+.pxInfo { font-size: 12px; color: var(--mut); text-align: start; }
+.menuName { margin: 0; font-size: 14px; word-break: break-word; }
