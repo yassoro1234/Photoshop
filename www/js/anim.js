@@ -7,6 +7,8 @@
 const ANIM = {
   brush: { size: 24, color: '#000000' },
   pen: null,                      // open path being drawn: { pts: [{x,y}] } in document units
+  rulers: false,
+  guides: { v: [], h: [] },       // guide positions in document units (view only, not saved)
   open: false, id: null, name: 'Untitled', touched: false, dirty: false,
   W: 1920, H: 1080, bg: '#ffffff', fps: 24, frames: 120,
   frame: 0, playing: false, loop: true,
@@ -196,6 +198,8 @@ function renderStage() {
   const sl = selLayer();
   if (sl) drawSelection(c, sl, k);
   if (ANIM.pen && ANIM.pen.pts.length) drawPenPreview(c, k);
+  drawGuides(c, k);
+  if (ANIM.rulers) drawRulers(c, r, k);
   c.setTransform(1, 0, 0, 1, 0, 0);
 }
 function drawSelection(c, l, k) {
@@ -780,6 +784,145 @@ async function paintEnd() {
   scheduleAnimSave();
 }
 
+/* ---------- rulers and guides ---------- */
+const RULER = 18;
+function drawGuides(c, k) {
+  const g = ANIM.guides;
+  if (!g.v.length && !g.h.length) return;
+  c.save();
+  c.strokeStyle = '#00d4ff';
+  c.lineWidth = 1 / k;
+  c.beginPath();
+  g.v.forEach(x => { c.moveTo(x, -ANIM.H * 4); c.lineTo(x, ANIM.H * 5); });
+  g.h.forEach(y => { c.moveTo(-ANIM.W * 4, y); c.lineTo(ANIM.W * 5, y); });
+  c.stroke();
+  c.restore();
+}
+function drawRulers(c, r, k) {
+  const dpr = window.devicePixelRatio || 1;
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const cx = r.width / 2 + ANIM.panX, cy = r.height / 2 + ANIM.panY;
+  const dx0 = (RULER - cx) / k + ANIM.W / 2, dx1 = (r.width - cx) / k + ANIM.W / 2;
+  const dy0 = (RULER - cy) / k + ANIM.H / 2, dy1 = (r.height - cy) / k + ANIM.H / 2;
+  // ticks are at least 60 screen pixels apart
+  const step = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].find(s => s * k >= 60) || 2000;
+  c.fillStyle = '#2b2b2b';
+  c.fillRect(0, 0, r.width, RULER);
+  c.fillRect(0, 0, RULER, r.height);
+  c.strokeStyle = '#8a8a8a';
+  c.fillStyle = '#cfcfcf';
+  c.font = '9px sans-serif';
+  c.lineWidth = 1;
+  c.beginPath();
+  for (let d = Math.ceil(dx0 / step) * step; d <= dx1; d += step) {
+    const sx = cx + (d - ANIM.W / 2) * k;
+    if (sx < RULER) continue;
+    c.moveTo(sx + 0.5, RULER - 6); c.lineTo(sx + 0.5, RULER);
+    c.fillText(String(Math.round(d)), sx + 2, 9);
+  }
+  for (let d = Math.ceil(dy0 / step) * step; d <= dy1; d += step) {
+    const sy = cy + (d - ANIM.H / 2) * k;
+    if (sy < RULER) continue;
+    c.moveTo(RULER - 6, sy + 0.5); c.lineTo(RULER, sy + 0.5);
+    c.save(); c.translate(9, sy + 2); c.rotate(-Math.PI / 2); c.fillText(String(Math.round(d)), 0, 0); c.restore();
+  }
+  c.stroke();
+  c.fillStyle = '#00d4ff';
+  ANIM.guides.v.forEach(x => { const sx = cx + (x - ANIM.W / 2) * k; if (sx >= RULER) c.fillRect(sx - 0.5, 0, 1, RULER); });
+  ANIM.guides.h.forEach(y => { const sy = cy + (y - ANIM.H / 2) * k; if (sy >= RULER) c.fillRect(0, sy - 0.5, RULER, 1); });
+}
+/* a guide is made by dragging from a ruler; dragging it back onto the ruler removes it */
+/* an existing guide under the pointer (within 6 px), so it can be moved or removed */
+function guideHit(e, r) {
+  const lx = e.clientX - r.left, ly = e.clientY - r.top;
+  const cx = r.width / 2 + ANIM.panX, cy = r.height / 2 + ANIM.panY;
+  let best = null, bd = 6;
+  ANIM.guides.v.forEach((g, i) => {
+    const dd = Math.abs(lx - (cx + (g - ANIM.W / 2) * ANIM.k));
+    if (dd <= bd) { bd = dd; best = { orient: 'v', idx: i }; }
+  });
+  ANIM.guides.h.forEach((g, i) => {
+    const dd = Math.abs(ly - (cy + (g - ANIM.H / 2) * ANIM.k));
+    if (dd <= bd) { bd = dd; best = { orient: 'h', idx: i }; }
+  });
+  return best;
+}
+function guideStart(e, r, d) {
+  const lx = e.clientX - r.left, ly = e.clientY - r.top;
+  const hit = guideHit(e, r);
+  if (hit && lx >= RULER && ly >= RULER) {
+    stageDrag = { mode: 'guide', orient: hit.orient, idx: hit.idx };
+    return true;
+  }
+  if (ly < RULER && lx >= RULER) {
+    ANIM.guides.h.push(d.y);
+    stageDrag = { mode: 'guide', orient: 'h', idx: ANIM.guides.h.length - 1 };
+    renderStage();
+    return true;
+  }
+  if (lx < RULER && ly >= RULER) {
+    ANIM.guides.v.push(d.x);
+    stageDrag = { mode: 'guide', orient: 'v', idx: ANIM.guides.v.length - 1 };
+    renderStage();
+    return true;
+  }
+  return false;
+}
+function guideEnd(e, st) {
+  const r = $('asCv').getBoundingClientRect();
+  const lx = e.clientX - r.left, ly = e.clientY - r.top;
+  const onRuler = st.orient === 'h' ? ly < RULER : lx < RULER;
+  if (onRuler) ANIM.guides[st.orient].splice(st.idx, 1);
+  renderStage();
+}
+/* moves a dragged layer so its centre or edges line up with a guide when they are close */
+function snapToGuides(l, nx, ny) {
+  if (!ANIM.guides.v.length && !ANIM.guides.h.length) return { x: nx, y: ny };
+  const p = layerPropsAt(l, ANIM.frame);
+  const hw = l.w * p.sx / 2, hh = l.h * p.sy / 2;
+  const tol = 6 / ANIM.k;
+  let bx = null, by = null;
+  ANIM.guides.v.forEach(g => [0, -hw, hw].forEach(o => {
+    const dd = g - (ANIM.W / 2 + nx + o);
+    if (Math.abs(dd) < tol && (bx === null || Math.abs(dd) < Math.abs(bx))) bx = dd;
+  }));
+  ANIM.guides.h.forEach(g => [0, -hh, hh].forEach(o => {
+    const dd = g - (ANIM.H / 2 + ny + o);
+    if (Math.abs(dd) < tol && (by === null || Math.abs(dd) < Math.abs(by))) by = dd;
+  }));
+  return { x: nx + (bx || 0), y: ny + (by || 0) };
+}
+
+/* ---------- frame copy and paste ---------- */
+let frameClip = null;
+function copyFrame() {
+  const items = [];
+  ANIM.layers.forEach(l => {
+    const k = l.kfs.find(x => x.f === ANIM.frame);
+    if (k) items.push({ id: l.id, k: { p: { ...k.p }, ease: k.ease, bez: k.bez ? k.bez.slice() : null, blank: !!k.blank } });
+  });
+  if (!items.length) return toast(t('لا توجد مفاتيح في هذا الإطار'));
+  frameClip = items;
+  toast(t('تم نسخ الإطار') + ' (' + items.length + ')');
+}
+function pasteFrame() {
+  if (!frameClip) return toast(t('لا يوجد إطار منسوخ'));
+  pushUndo();
+  let n = 0;
+  frameClip.forEach(it => {
+    const l = ANIM.layers.find(x => x.id === it.id);
+    if (!l || l.lock) return;
+    const k = ensureKey(l, ANIM.frame);
+    k.p = { ...it.k.p };
+    k.ease = it.k.ease;
+    if (it.k.bez) k.bez = it.k.bez.slice();
+    if (it.k.blank) k.blank = true; else delete k.blank;
+    n++;
+  });
+  renderAll();
+  toast(t('تم لصق الإطار') + ' (' + n + ')');
+}
+
 /* ---------- pen, bucket and eyedropper ---------- */
 function drawPenPreview(c, k) {
   const pts = ANIM.pen.pts;
@@ -920,6 +1063,7 @@ function bindStage() {
   cv.addEventListener('pointerdown', e => {
     cv.setPointerCapture(e.pointerId);
     const d = stageToDoc(e.clientX, e.clientY);
+    if (ANIM.rulers && guideStart(e, cv.getBoundingClientRect(), d)) return;
     if (ANIM.tool === 'hand') { stageDrag = { mode: 'pan', x: e.clientX, y: e.clientY, px: ANIM.panX, py: ANIM.panY }; return; }
     if (ANIM.tool === 'zoom') { zoomBy(e.altKey ? 1 / 1.25 : 1.25); return; }
     if (['text', 'rect', 'ellipse'].includes(ANIM.tool)) {
@@ -960,14 +1104,24 @@ function bindStage() {
       return;
     }
     const d = stageToDoc(e.clientX, e.clientY);
+    if (stageDrag.mode === 'guide') {
+      ANIM.guides[stageDrag.orient][stageDrag.idx] = stageDrag.orient === 'v' ? d.x : d.y;
+      renderStage();
+      return;
+    }
     if (stageDrag.mode === 'paint') { paintTo(stageDrag, d, false); return; }
     if (stageDrag.mode === 'handle') { handleDrag(stageDrag, d); renderAll(); return; }
     const { l, p0 } = stageDrag;
-    setProp(l, 'x', p0.x + d.x - stageDrag.sx);
-    setProp(l, 'y', p0.y + d.y - stageDrag.sy);
+    const sn = snapToGuides(l, p0.x + d.x - stageDrag.sx, p0.y + d.y - stageDrag.sy);
+    setProp(l, 'x', sn.x);
+    setProp(l, 'y', sn.y);
     renderAll();
   });
-  const end = () => { if (stageDrag && stageDrag.mode === 'paint') paintEnd(); else stageDrag = null; };
+  const end = e => {
+    if (stageDrag && stageDrag.mode === 'paint') return paintEnd();
+    if (stageDrag && stageDrag.mode === 'guide') { const st = stageDrag; stageDrag = null; return guideEnd(e, st); }
+    stageDrag = null;
+  };
   cv.addEventListener('pointerup', end);
   cv.addEventListener('pointercancel', end);
   cv.addEventListener('wheel', e => { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1.1 : 1 / 1.1); }, { passive: false });
@@ -1102,6 +1256,8 @@ function resetAnim(opts) {
     undo: [], redo: [], touched: false, dirty: false
   });
   Object.keys(ASI).forEach(k => delete ASI[k]);
+  ANIM.guides = { v: [], h: [] };
+  ANIM.pen = null;
 }
 
 /* Opens an existing animation project from the library */
@@ -1207,7 +1363,9 @@ function animMenuDefs() {
     'عرض': [
       { label: 'تكبير', fn: () => zoomBy(1.25) },
       { label: 'تصغير', fn: () => zoomBy(1 / 1.25) },
-      { label: 'ملاءمة الشاشة', fn: () => { ANIM.zoom = 1; ANIM.panX = 0; ANIM.panY = 0; renderStage(); } }
+      { label: 'ملاءمة الشاشة', fn: () => { ANIM.zoom = 1; ANIM.panX = 0; ANIM.panY = 0; renderStage(); } },
+      { label: 'المساطر', fn: () => { ANIM.rulers = !ANIM.rulers; renderStage(); } },
+      { label: 'مسح الأدلة', fn: () => { ANIM.guides = { v: [], h: [] }; renderStage(); } }
     ],
     'إدراج': [
       { label: 'صورة من الجهاز…', fn: () => $('asFileIn').click() },
@@ -1226,7 +1384,9 @@ function animMenuDefs() {
       { label: 'تشغيل / إيقاف', fn: () => animPlay(!ANIM.playing) },
       { label: 'إيقاف وإرجاع للبداية', fn: animStop },
       { label: 'تكرار التشغيل', fn: () => { ANIM.loop = !ANIM.loop; toast(ANIM.loop ? t('التكرار مفعّل') : t('التكرار متوقف')); } },
-      { label: 'المنحنيات', fn: toggleGraph }
+      { label: 'المنحنيات', fn: toggleGraph },
+      { label: 'نسخ الإطار', fn: copyFrame },
+      { label: 'لصق الإطار', fn: pasteFrame }
     ],
     'نافذة': [
       { label: 'الخط الزمني', fn: () => { if (ANIM.graphOpen) toggleGraph(); } },
