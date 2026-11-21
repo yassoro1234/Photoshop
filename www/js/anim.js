@@ -474,7 +474,14 @@ function renderTimeline() {
       const r = tr.getBoundingClientRect();
       setFrame((e.clientX - r.left) / CELL);
     };
-    l.kfs.forEach(kf => {
+    l.kfs.forEach((kf, idx) => {
+      const nx = l.kfs[idx + 1];
+      if (kf.tween && nx) {
+        const bar = el('div', 'tweenBar');
+        bar.style.left = (kf.f * CELL) + 'px';
+        bar.style.width = ((nx.f - kf.f) * CELL) + 'px';
+        tr.appendChild(bar);
+      }
       const d = el('div', 'kf' + (kf.ease !== 'linear' ? ' eased' : '') + (kf.blank ? ' blank' : ''));
       d.style.left = (kf.f * CELL) + 'px';
       d.title = `${kf.f + 1}`;
@@ -521,6 +528,28 @@ function formRowA(label, control) {
   r.append(el('span', null, label), control);
   return r;
 }
+/* a swatch that opens the shared color picker; the first change makes one undo step */
+function colorSwatch(value, disabled, apply) {
+  const b = document.createElement('button');
+  b.className = 'swatchBtn';
+  b.style.background = value;
+  b.disabled = disabled;
+  let cur = value;
+  b.onclick = () => {
+    let started = false;
+    openColorPicker({
+      value: cur,
+      anchor: b.getBoundingClientRect(),
+      onChange: hex => {
+        if (!started) { started = true; pushUndo(); }
+        cur = hex;
+        b.style.background = hex;
+        apply(hex);
+      }
+    });
+  };
+  return b;
+}
 function renderProps() {
   const body = $('asPropsBody');
   body.innerHTML = '';
@@ -556,9 +585,7 @@ function renderProps() {
     body.append(formRowA(t('الحجم'), size));
   }
   if (l.type !== 'image') {
-    const col = document.createElement('input');
-    col.type = 'color'; col.value = l.color; col.disabled = locked;
-    col.onchange = () => { pushUndo(); l.color = col.value; renderAll(); };
+    const col = colorSwatch(l.color, locked, hex => { l.color = hex; renderStage(); });
     body.append(formRowA(t('اللون'), col));
   }
 
@@ -893,6 +920,36 @@ function snapToGuides(l, nx, ny) {
   return { x: nx + (bx || 0), y: ny + (by || 0) };
 }
 
+/* ---------- motion tween ---------- */
+function tweenDialog() {
+  const input = document.createElement('input');
+  input.type = 'number'; input.min = 1; input.max = 600; input.value = 24;
+  const body = el('div', 'ctrls'); body.append(input);
+  openModal({
+    title: t('إنشاء حركة'), body,
+    buttons: [{ label: t('إلغاء'), onClick: closeModal }, { label: t('إنشاء'), primary: true, onClick: () => {
+      const n = Math.round(+input.value) || 24;
+      closeModal();
+      createTween(n);
+    } }]
+  });
+}
+/* a tween joins the playhead frame and the frame len later; change the pose at the end to animate */
+function createTween(len) {
+  const l = selLayer();
+  if (!l) return toast(t('اختر طبقة أولاً'));
+  if (l.lock) return toast(t('الطبقة مقفلة'));
+  const start = ANIM.frame, end = Math.min(ANIM.frames - 1, start + Math.max(1, len));
+  if (end <= start) return toast(t('لا يوجد مكان لإنشاء الحركة'));
+  pushUndo();
+  const a = ensureKey(l, start);
+  a.ease = 'inout';
+  a.tween = true;
+  ensureKey(l, end);
+  setFrame(end);
+  renderAll();
+}
+
 /* ---------- frame copy and paste ---------- */
 let frameClip = null;
 function copyFrame() {
@@ -1009,7 +1066,7 @@ function pickColorAt(d) {
   drawScene(x, ANIM.frame);
   const [r, g, b] = x.getImageData(px, py, 1, 1).data;
   ANIM.brush.color = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
-  $('asBrushColor').value = ANIM.brush.color;
+  $('asBrushColor').style.background = ANIM.brush.color;
   setAnimTool('brush');
   toast(ANIM.brush.color);
 }
@@ -1386,7 +1443,8 @@ function animMenuDefs() {
       { label: 'تكرار التشغيل', fn: () => { ANIM.loop = !ANIM.loop; toast(ANIM.loop ? t('التكرار مفعّل') : t('التكرار متوقف')); } },
       { label: 'المنحنيات', fn: toggleGraph },
       { label: 'نسخ الإطار', fn: copyFrame },
-      { label: 'لصق الإطار', fn: pasteFrame }
+      { label: 'لصق الإطار', fn: pasteFrame },
+      { label: 'إنشاء حركة بين الإطارات…', fn: tweenDialog }
     ],
     'نافذة': [
       { label: 'الخط الزمني', fn: () => { if (ANIM.graphOpen) toggleGraph(); } },
@@ -1539,10 +1597,14 @@ function buildAnimUI() {
 
   const bar = el('div', '');
   bar.id = 'asBrushBar';
-  bar.innerHTML = `<label>${t('حجم')} <input type="range" id="asBrushSize" min="2" max="200" value="${ANIM.brush.size}"> <span id="asBrushVal">${ANIM.brush.size}</span></label><label>${t('لون')} <input type="color" id="asBrushColor" value="${ANIM.brush.color}"></label><button id="asPenDone" class="penOnly">✓ ${t('إنهاء')}</button><button id="asPenCancel" class="penOnly">✕ ${t('إلغاء')}</button>`;
+  bar.innerHTML = `<label>${t('حجم')} <input type="range" id="asBrushSize" min="2" max="200" value="${ANIM.brush.size}"> <span id="asBrushVal">${ANIM.brush.size}</span></label><label>${t('لون')} <button id="asBrushColor" class="swatchBtn" style="background:${ANIM.brush.color}"></button></label><button id="asPenDone" class="penOnly">✓ ${t('إنهاء')}</button><button id="asPenCancel" class="penOnly">✕ ${t('إلغاء')}</button>`;
   $('asStageWrap').appendChild(bar);
   $('asBrushSize').oninput = e => { ANIM.brush.size = +e.target.value; $('asBrushVal').textContent = e.target.value; };
-  $('asBrushColor').oninput = e => { ANIM.brush.color = e.target.value; };
+  $('asBrushColor').onclick = () => openColorPicker({
+    value: ANIM.brush.color,
+    anchor: $('asBrushColor').getBoundingClientRect(),
+    onChange: hex => { ANIM.brush.color = hex; $('asBrushColor').style.background = hex; }
+  });
   $('asPenDone').onclick = () => penFinish(false);
   $('asPenCancel').onclick = penCancel;
 

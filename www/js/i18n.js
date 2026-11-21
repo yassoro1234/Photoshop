@@ -436,6 +436,10 @@ const I18N = {
     'تم نسخ المفتاح': 'Key copied',
     'لا يوجد مفتاح منسوخ': 'No key copied',
     'اسحب لتغيير الارتفاع': 'Drag to change height',
+    'إنشاء حركة بين الإطارات…': 'Create tween between frames…',
+    'إنشاء حركة': 'Create tween',
+    'لا يوجد مكان لإنشاء الحركة': 'No room for a tween here',
+
     'المساطر': 'Rulers',
     'مسح الأدلة': 'Clear guides',
     'نسخ الإطار': 'Copy frame',

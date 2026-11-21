@@ -235,7 +235,7 @@ function syncColors() { renderSwatches(); }
   };
   ['cpR', 'cpG', 'cpB'].forEach(id => $(id).addEventListener('change', rgbInput));
 
-  $('cpEyedrop').onclick = () => { closeColorPicker(); setTool('eyedrop'); };
+  $('cpEyedrop').onclick = () => { closeColorPicker(); if (ANIM.open) setAnimTool('eyedrop'); else setTool('eyedrop'); };
   $('cpClose').onclick = closeColorPicker;
 
   document.addEventListener('pointerdown', e => {
