@@ -62,7 +62,7 @@ function studioSection() {
       action: t('فتح الاستوديو'), onOpen: openPhotoStudio }),
     studioCard({ icon: ICON_ANIM, title: 'ANIMATION STUDIO',
       desc: t('رسوم متحركة ثنائية الأبعاد بالإطارات والمفاتيح'),
-      badge: t('قريباً في التحديث القادم'), onOpen: null })
+      action: t('فتح الاستوديو'), onOpen: () => openAnimNewDialog() })
   );
   return s;
 }

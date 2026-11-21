@@ -1,6 +1,6 @@
 /* ===== Project library: projects kept in IndexedDB, autosave, thumbnails ===== */
 
-const LIB = { name: 'creative-studio', version: 1, db: null };
+const LIB = { name: 'creative-studio', version: 2, db: null };
 
 function libOpen() {
   if (LIB.db) return Promise.resolve(LIB.db);
@@ -11,6 +11,7 @@ function libOpen() {
       const db = req.result;
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('data')) db.createObjectStore('data', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('assets')) db.createObjectStore('assets', { keyPath: 'id' });
     };
     req.onsuccess = () => { LIB.db = req.result; resolve(LIB.db); };
     req.onerror = () => reject(req.error);
@@ -178,6 +179,7 @@ async function openLibraryProject(id) {
   try {
     const meta = await libMeta(id), rec = await libData(id);
     if (!meta || !rec) return toast(t('المشروع غير موجود'));
+    if (meta.type === 'anim') return await openAnimationProject(meta, rec);
     flushAutosave();
     const prev = state.docIndex;
     state.docs[state.docIndex] = captureDoc();
@@ -198,3 +200,9 @@ async function openLibraryProject(id) {
     toast(t('تعذر فتح المشروع'));
   }
 }
+
+/* ---------- shared assets (images that move between the studios) ---------- */
+function libAssetPut(a) { return libRun('assets', 'readwrite', s => s.put(a)); }
+function libAssetAll() { return libRun('assets', 'readonly', s => s.getAll()); }
+function libAssetGet(id) { return libRun('assets', 'readonly', s => s.get(id)); }
+function libAssetDelete(id) { return libRun('assets', 'readwrite', s => s.delete(id)); }

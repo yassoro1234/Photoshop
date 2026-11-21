@@ -105,6 +105,7 @@ function menuDefs() {
       { label: 'حفظ المشروع', key: 'Ctrl+S', fn: () => saveProject(false) },
       { label: 'حفظ باسم…', fn: () => saveProject(true) },
       { label: 'تصدير ملف المشروع…', fn: exportProjectFile },
+      { label: 'إرسال إلى Animation Studio', fn: sendToAnimation },
       { sep: 1 },
       { label: 'تصدير PNG', key: 'Ctrl+Shift+E', fn: () => exportAs('png') },
       { label: 'تصدير JPG', fn: () => exportAs('jpg') },
@@ -647,6 +648,7 @@ const TOOL_KEYS = {};
 TOOL_LIST.forEach(tl => TOOL_KEYS[tl.key.toLowerCase()] = tl.id);
 
 window.addEventListener('keydown', e => {
+  if (ANIM.open) return;   // the animation studio handles its own keys
   if ($('modal').classList.contains('on')) {
     if (e.key === 'Escape') dismissModal();
     return;
@@ -725,5 +727,6 @@ window.addEventListener('resize', () => { if (state.layers.length) resetView(); 
   renderTabs();
   resetView();
   refreshLayers();
+  buildAnimUI();
   if (getSettings().startHome) showHome();
 })();
