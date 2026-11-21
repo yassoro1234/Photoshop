@@ -1,21 +1,21 @@
 /* ===== Tools & pointer handling ===== */
 
 const TOOL_LIST = [
-  { id: 'move',    name: 'Move',              icon: '✥', key: 'V' },
-  { id: 'marquee', name: 'Marquee Selection', icon: '▭', key: 'M' },
-  { id: 'lasso',   name: 'Lasso',             icon: '⌒', key: 'L' },
-  { id: 'quick',   name: 'Quick Selection',   icon: '✦', key: 'W' },
-  { id: 'crop',    name: 'Crop',              icon: '⌗', key: 'C' },
-  { id: 'brush',   name: 'Brush',             icon: '✎', key: 'B' },
-  { id: 'eraser',  name: 'Eraser',            icon: '⌫', key: 'E' },
-  { id: 'clone',   name: 'Clone Stamp',       icon: '⎘', key: 'S' },
-  { id: 'gradient',name: 'Gradient',          icon: '◧', key: 'G' },
-  { id: 'bucket',  name: 'Paint Bucket',      icon: '◍', key: 'K' },
-  { id: 'text',    name: 'Text',              icon: 'T', key: 'T' },
-  { id: 'pen',     name: 'Pen',               icon: '✒', key: 'P' },
-  { id: 'eyedrop', name: 'Eyedropper',        icon: '⌖', key: 'I' },
-  { id: 'hand',    name: 'Hand',              icon: '✋', key: 'H' },
-  { id: 'zoom',    name: 'Zoom',              icon: '⌕', key: 'Z' }
+  { id: 'move',    name: 'Move',              icon: '✥', img: 'move_tool.png', key: 'V' },
+  { id: 'marquee', name: 'Marquee Selection', icon: '▭', img: 'marquee_tool.png', key: 'M' },
+  { id: 'lasso',   name: 'Lasso',             icon: '⌒', img: 'lasso_tool.png', key: 'L' },
+  { id: 'quick',   name: 'Quick Selection',   icon: '✦', img: 'quick_selection_tool.png', key: 'W' },
+  { id: 'crop',    name: 'Crop',              icon: '⌗', img: 'crop_tool.png', key: 'C' },
+  { id: 'brush',   name: 'Brush',             icon: '✎', img: 'brush_tool.png', key: 'B' },
+  { id: 'eraser',  name: 'Eraser',            icon: '⌫', img: 'eraser_tool.png', key: 'E' },
+  { id: 'clone',   name: 'Clone Stamp',       icon: '⎘', img: 'clone_stamp_tool.png', key: 'S' },
+  { id: 'gradient',name: 'Gradient',          icon: '◧', img: 'gradient_tool.png', key: 'G' },
+  { id: 'bucket',  name: 'Paint Bucket',      icon: '◍', img: 'paint_bucket_tool.png', key: 'K' },
+  { id: 'text',    name: 'Text',              icon: 'T', img: 'text_tool.png', key: 'T' },
+  { id: 'pen',     name: 'Pen',               icon: '✒', img: 'pen_tool.png', key: 'P' },
+  { id: 'eyedrop', name: 'Eyedropper',        icon: '⌖', img: 'eyedropper_tool.png', key: 'I' },
+  { id: 'hand',    name: 'Hand',              icon: '✋', img: 'hand_tool.png', key: 'H' },
+  { id: 'zoom',    name: 'Zoom',              icon: '⌕', img: 'zoom_tool.png', key: 'Z' }
 ];
 
 const pointers = new Map();

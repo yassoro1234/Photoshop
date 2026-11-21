@@ -17,6 +17,7 @@ const ANIM = {
   tool: 'select', graphOpen: false, graphProp: 'x',
   undo: [], redo: []
 };
+const ANIM_ICON = {"select": "move_tool.png", "hand": "hand_tool.png", "zoom": "zoom_tool.png", "text": "text_tool.png", "rect": "rectangle_tool.png", "ellipse": "ellipse_tool.png", "brush": "brush_tool.png", "eraser": "eraser_tool.png", "pen": "pen_tool.png", "bucket": "paint_bucket_tool.png", "eyedrop": "eyedropper_tool.png"};   // tool id -> icon file in www/icons
 const ASI = {};
 const LIVE = {};                      // live stroke canvas of a draw layer: id -> canvas                      // image cache: key -> HTMLImageElement
 const AP_PROPS = ['x', 'y', 'sx', 'sy', 'rot', 'op'];
@@ -1644,7 +1645,9 @@ function buildAnimUI() {
   const tools = $('asTools');
   [['select', '↖', 'تحديد'], ['hand', '✋', 'يد'], ['zoom', '🔍', 'تكبير'],
    ['text', 'T', 'نص'], ['rect', '▭', 'مستطيل'], ['ellipse', '◯', 'دائرة'], ['brush', '🖌', 'فرشاة'], ['eraser', '⌫', 'ممحاة'], ['pen', '✒', 'قلم'], ['bucket', '🪣', 'تعبئة'], ['eyedrop', '💧', 'قطارة الألوان']].forEach(([id, ic, lab]) => {
-    const b = el('button', 'asTool', ic);
+    const b = el('button', 'asTool', '');
+    if (ANIM_ICON[id]) b.innerHTML = `<img src="icons/${ANIM_ICON[id]}" alt="">`;
+    else b.textContent = ic;
     b.dataset.tool = id; b.title = t(lab);
     b.onclick = () => setAnimTool(id);
     tools.appendChild(b);

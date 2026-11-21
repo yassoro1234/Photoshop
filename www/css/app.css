@@ -236,3 +236,6 @@ body.panelOpen #scrim { display: block; }
   #side .hdr .ico { padding: 6px 12px; font-size: 16px; }
   #side #layerCtl button { padding: 7px 10px; }
 }
+
+.tool img, .asTool img { width: 30px; height: 30px; display: block; pointer-events: none; opacity: .85; }
+.tool.on img, .asTool.on img, .tool:hover img, .asTool:hover img { opacity: 1; }

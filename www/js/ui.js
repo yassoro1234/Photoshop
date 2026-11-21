@@ -258,7 +258,8 @@ function buildTools() {
     const d = document.createElement('div');
     d.className = 'tool' + (state.tool === tl.id ? ' on' : '');
     d.dataset.tip = `${t(tl.name)} (${tl.key})`;
-    d.textContent = tl.icon;
+    if (tl.img) d.innerHTML = `<img src="icons/${tl.img}" alt="">`;
+    else d.textContent = tl.icon;
     d.onclick = () => setTool(tl.id);
     box.appendChild(d);
   });
