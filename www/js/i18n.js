@@ -435,7 +435,12 @@ const I18N = {
     'لصق المفتاح': 'Paste key',
     'تم نسخ المفتاح': 'Key copied',
     'لا يوجد مفتاح منسوخ': 'No key copied',
-    'اسحب لتغيير الارتفاع': 'Drag to change height'
+    'اسحب لتغيير الارتفاع': 'Drag to change height',
+    'حجم': 'Size',
+    'لون': 'Color',
+    'فرشاة': 'Brush',
+    'ممحاة': 'Eraser',
+    'طبقة رسم': 'Drawing layer'
   },
 
   ar: {

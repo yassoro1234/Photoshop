@@ -99,3 +99,8 @@
   .asName { max-width: 30vw; }
 }
 #asFileIn { display: none; }
+
+#asBrushBar { display: none; position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 3; align-items: center; gap: 12px; padding: 6px 12px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; font-size: 13px; white-space: nowrap; }
+#asBrushBar.on { display: flex; }
+#asBrushBar input[type=range] { width: 120px; }
+#asBrushBar input[type=color] { width: 34px; height: 26px; padding: 0; border: none; background: none; }

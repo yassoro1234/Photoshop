@@ -5,6 +5,7 @@
    otherwise the value is interpolated between its keyframes. Each keyframe stores all
    six properties; its `ease` and `bez` describe the segment that starts at that keyframe. */
 const ANIM = {
+  brush: { size: 24, color: '#000000' },
   open: false, id: null, name: 'Untitled', touched: false, dirty: false,
   W: 1920, H: 1080, bg: '#ffffff', fps: 24, frames: 120,
   frame: 0, playing: false, loop: true,
@@ -13,7 +14,8 @@ const ANIM = {
   tool: 'select', graphOpen: false, graphProp: 'x',
   undo: [], redo: []
 };
-const ASI = {};                      // image cache: key -> HTMLImageElement
+const ASI = {};
+const LIVE = {};                      // live stroke canvas of a draw layer: id -> canvas                      // image cache: key -> HTMLImageElement
 const AP_PROPS = ['x', 'y', 'sx', 'sy', 'rot', 'op'];
 const AP_LABEL = { x: 'X', y: 'Y', sx: 'العرض %', sy: 'الارتفاع %', rot: 'الدوران °', op: 'الشفافية %' };
 const AP_DEF = { x: 0, y: 0, sx: 1, sy: 1, rot: 0, op: 1 };
@@ -103,7 +105,7 @@ function updateTextBox(l) {
   l.h = Math.max(l.size, lines.length * l.size * 1.2);
 }
 function newLayer(type, extra = {}) {
-  const names = { image: 'صورة', text: 'نص', rect: 'مستطيل', ellipse: 'دائرة' };
+  const names = { image: 'صورة', text: 'نص', rect: 'مستطيل', ellipse: 'دائرة', draw: 'طبقة رسم' };
   const l = {
     id: uid(), name: names[type] + ' ' + (ANIM.layers.length + 1), type,
     vis: true, lock: false, w: 300, h: 300, color: '#4f7fb8', key: null,
@@ -150,9 +152,9 @@ function drawLayer(c, l, frame) {
   c.translate(ANIM.W / 2 + p.x, ANIM.H / 2 + p.y);
   c.rotate(p.rot * Math.PI / 180);
   c.scale(p.sx, p.sy);
-  if (l.type === 'image') {
-    const im = ASI[l.key];
-    if (im && im.complete) c.drawImage(im, -l.w / 2, -l.h / 2, l.w, l.h);
+  if (l.type === 'image' || l.type === 'draw') {
+    const im = LIVE[l.id] || ASI[l.key];
+    if (im && (im.complete ?? true)) c.drawImage(im, -l.w / 2, -l.h / 2, l.w, l.h);
   } else if (l.type === 'rect') {
     c.fillStyle = l.color; c.fillRect(-l.w / 2, -l.h / 2, l.w, l.h);
   } else if (l.type === 'ellipse') {
@@ -708,6 +710,74 @@ function graphHandleAt(e) {
   return null;
 }
 
+/* ---------- brush and eraser (paint onto a draw layer) ---------- */
+function imgDims(im) { return { w: im.naturalWidth || im.width, h: im.naturalHeight || im.height }; }
+/* point in the layer's own units, origin at its centre, before scale and rotation */
+function layerLocal(l, p, d) {
+  const a = -p.rot * Math.PI / 180;
+  const vx = d.x - (ANIM.W / 2 + p.x), vy = d.y - (ANIM.H / 2 + p.y);
+  const ux = vx * Math.cos(a) - vy * Math.sin(a), uy = vx * Math.sin(a) + vy * Math.cos(a);
+  return { x: ux / p.sx, y: uy / p.sy };
+}
+function newDrawLayer() {
+  pushUndo();
+  const c = document.createElement('canvas');
+  c.width = ANIM.W; c.height = ANIM.H;
+  const key = uid();
+  ANIM.imgs[key] = c.toDataURL('image/png');
+  ASI[key] = c;
+  const l = newLayer('draw', { key, w: ANIM.W, h: ANIM.H });
+  addLayerObj(l);
+  return l;
+}
+function paintStart(d) {
+  let l = selLayer();
+  if (!l || l.type !== 'draw' || l.lock) l = newDrawLayer();
+  else if (l.lock) return toast(t('الطبقة مقفلة'));
+  pushUndo();
+  const im = ASI[l.key];
+  const dim = imgDims(im);
+  const c = document.createElement('canvas');
+  c.width = dim.w; c.height = dim.h;
+  c.getContext('2d').drawImage(im, 0, 0);
+  LIVE[l.id] = c;
+  const st = { mode: 'paint', l, c, p: layerPropsAt(l, ANIM.frame), erase: ANIM.tool === 'eraser', last: null };
+  stageDrag = st;
+  paintTo(st, d, true);
+}
+function paintTo(st, d, first) {
+  const lp = layerLocal(st.l, st.p, d);
+  const bp = { x: (lp.x + st.l.w / 2) * st.c.width / st.l.w, y: (lp.y + st.l.h / 2) * st.c.height / st.l.h };
+  const scale = Math.sqrt(Math.abs(st.p.sx * st.p.sy)) || 1;
+  const width = Math.max(1, ANIM.brush.size / scale * st.c.width / st.l.w);
+  const x = st.c.getContext('2d');
+  x.save();
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  x.globalCompositeOperation = st.erase ? 'destination-out' : 'source-over';
+  x.strokeStyle = ANIM.brush.color; x.fillStyle = ANIM.brush.color; x.lineWidth = width;
+  if (first) {
+    x.beginPath(); x.arc(bp.x, bp.y, width / 2, 0, Math.PI * 2); x.fill();
+  } else {
+    x.beginPath(); x.moveTo(st.last.x, st.last.y); x.lineTo(bp.x, bp.y); x.stroke();
+  }
+  x.restore();
+  st.last = bp;
+  renderStage();
+}
+async function paintEnd() {
+  const st = stageDrag;
+  stageDrag = null;
+  if (!st) return;
+  const url = st.c.toDataURL('image/png');
+  const key = uid();
+  ANIM.imgs[key] = url;
+  await animImgLoad(key, url);
+  st.l.key = key;          // the undo snapshot taken at the start still points at the old bitmap
+  delete LIVE[st.l.id];
+  renderAll();
+  scheduleAnimSave();
+}
+
 /* ---------- stage interaction ---------- */
 let stageDrag = null;
 function bindStage() {
@@ -722,6 +792,7 @@ function bindStage() {
       setAnimTool('select');
       return;
     }
+    if (ANIM.tool === 'brush' || ANIM.tool === 'eraser') { paintStart(d); return; }
     const sl = selLayer();
     if (ANIM.tool === 'select' && sl && !sl.lock) {
       const h = handleAt(sl, d);
@@ -751,13 +822,14 @@ function bindStage() {
       return;
     }
     const d = stageToDoc(e.clientX, e.clientY);
+    if (stageDrag.mode === 'paint') { paintTo(stageDrag, d, false); return; }
     if (stageDrag.mode === 'handle') { handleDrag(stageDrag, d); renderAll(); return; }
     const { l, p0 } = stageDrag;
     setProp(l, 'x', p0.x + d.x - stageDrag.sx);
     setProp(l, 'y', p0.y + d.y - stageDrag.sy);
     renderAll();
   });
-  const end = () => { stageDrag = null; };
+  const end = () => { if (stageDrag && stageDrag.mode === 'paint') paintEnd(); else stageDrag = null; };
   cv.addEventListener('pointerup', end);
   cv.addEventListener('pointercancel', end);
   cv.addEventListener('wheel', e => { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1.1 : 1 / 1.1); }, { passive: false });
@@ -812,6 +884,8 @@ function zoomBy(f) {
 function setAnimTool(id) {
   ANIM.tool = id;
   document.querySelectorAll('#asTools button').forEach(b => b.classList.toggle('on', b.dataset.tool === id));
+  const bb = $('asBrushBar');
+  if (bb) bb.classList.toggle('on', id === 'brush' || id === 'eraser');
   $('asCv').style.cursor = id === 'hand' ? 'grab' : id === 'zoom' ? 'zoom-in' : 'crosshair';
 }
 
@@ -825,7 +899,15 @@ function animThumb() {
   drawScene(x, 0);
   return c.toDataURL('image/png');
 }
+function pruneImgs() {
+  const used = new Set(ANIM.layers.map(l => l.key));
+  const snaps = ANIM.undo.concat(ANIM.redo);
+  Object.keys(ANIM.imgs).forEach(k => {
+    if (!used.has(k) && !snaps.some(s => s.includes(k))) delete ANIM.imgs[k];
+  });
+}
 function animData() {
+  pruneImgs();
   return {
     format: 'photostudio-anim', version: 1, name: ANIM.name,
     W: ANIM.W, H: ANIM.H, bg: ANIM.bg, fps: ANIM.fps, frames: ANIM.frames,
@@ -1147,13 +1229,20 @@ function buildAnimUI() {
   /* tools */
   const tools = $('asTools');
   [['select', '↖', 'تحديد'], ['hand', '✋', 'يد'], ['zoom', '🔍', 'تكبير'],
-   ['text', 'T', 'نص'], ['rect', '▭', 'مستطيل'], ['ellipse', '◯', 'دائرة']].forEach(([id, ic, lab]) => {
+   ['text', 'T', 'نص'], ['rect', '▭', 'مستطيل'], ['ellipse', '◯', 'دائرة'], ['brush', '🖌', 'فرشاة'], ['eraser', '⌫', 'ممحاة']].forEach(([id, ic, lab]) => {
     const b = el('button', 'asTool', ic);
     b.dataset.tool = id; b.title = t(lab);
     b.onclick = () => setAnimTool(id);
     tools.appendChild(b);
   });
   setAnimTool('select');
+
+  const bar = el('div', '');
+  bar.id = 'asBrushBar';
+  bar.innerHTML = `<label>${t('حجم')} <input type="range" id="asBrushSize" min="2" max="200" value="${ANIM.brush.size}"> <span id="asBrushVal">${ANIM.brush.size}</span></label><label>${t('لون')} <input type="color" id="asBrushColor" value="${ANIM.brush.color}"></label>`;
+  $('asStageWrap').appendChild(bar);
+  $('asBrushSize').oninput = e => { ANIM.brush.size = +e.target.value; $('asBrushVal').textContent = e.target.value; };
+  $('asBrushColor').oninput = e => { ANIM.brush.color = e.target.value; };
 
   $('asHome').onclick = () => closeAnimScreen();
   $('asName').onclick = renameAnim;
@@ -1220,5 +1309,7 @@ function animKeys(e) {
   if (k === 't') return setAnimTool('text');
   if (k === 'r') return setAnimTool('rect');
   if (k === 'o') return setAnimTool('ellipse');
+  if (k === 'b') return setAnimTool('brush');
+  if (k === 'e') return setAnimTool('eraser');
 }
 
