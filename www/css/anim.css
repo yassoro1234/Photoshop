@@ -60,7 +60,7 @@
 .asField { display: inline-flex; align-items: center; gap: 4px; color: var(--mut); font-size: 12px; }
 .asField input { width: 62px; }
 #asTl { flex: 1; min-height: 90px; overflow: auto; position: relative; }
-#asTl.short { flex: none; height: 96px; }
+#asTl.short { flex: none; height: 72px; }
 #asTlBody { position: relative; min-width: 100%; width: max-content; }
 .tlRow { display: flex; height: 28px; border-bottom: 1px solid var(--line); }
 .tlRow.sel { background: rgba(79,127,184,.14); }
@@ -73,11 +73,13 @@
 .tlTrack { position: relative; flex: none; height: 100%; background-image: linear-gradient(to right, #2a2a2a 1px, transparent 1px); background-size: 60px 100%; }
 .tlRuler .tlTrack { background-image: none; cursor: col-resize; }
 .tick { position: absolute; top: 4px; font-size: 10px; color: var(--mut); transform: translateX(-50%); pointer-events: none; }
-.kf { position: absolute; top: 8px; width: 10px; height: 10px; background: var(--txt); transform: translateX(-5px) rotate(45deg); border-radius: 1px; cursor: grab; z-index: 2; }
+.kf { position: absolute; top: 8px; width: 10px; height: 10px; background: var(--txt); transform: translateX(-5px) rotate(45deg); border-radius: 1px; cursor: grab; z-index: 2; touch-action: none; }
+.kf::after { content: ''; position: absolute; inset: -10px; }
 .kf.eased { background: var(--acc); }
 .kf.blank { background: transparent; border: 1.5px solid var(--txt); width: 8px; height: 8px; }
 .kf:hover { outline: 2px solid var(--acc); outline-offset: 1px; }
 .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff5a4f; z-index: 6; pointer-events: none; }
+.playhead::before { content: ''; position: absolute; top: 0; height: 28px; left: -12px; right: -12px; pointer-events: auto; touch-action: none; cursor: ew-resize; }
 
 /* graph editor */
 #asGraphPanel { display: none; flex: 1; min-height: 0; flex-direction: column; gap: 4px; padding: 6px 8px; border-top: 1px solid var(--line); }
@@ -111,3 +113,6 @@
 
 .swatchBtn { width: 34px; height: 26px; border-radius: 6px; border: 1px solid var(--line); padding: 0; cursor: pointer; }
 .tweenBar { position: absolute; top: 50%; height: 3px; margin-top: -1.5px; background: var(--acc); opacity: .7; border-radius: 2px; pointer-events: none; }
+
+#asTlBar { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
+#asTlBar::-webkit-scrollbar { display: none; }

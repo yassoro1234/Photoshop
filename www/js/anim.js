@@ -417,6 +417,40 @@ function deleteKeyHere() {
 function updatePlayhead() {
   const ph = $('asPlayhead');
   if (ph) ph.style.left = (NAME_W + ANIM.frame * CELL) + 'px';
+  const tl = $('asTl');
+  if (tl && !ANIM.scrubbing) {
+    const x = NAME_W + ANIM.frame * CELL;
+    const shown = x - tl.scrollLeft;
+    if (shown < NAME_W + 12 || shown > tl.clientWidth - 24) {
+      tl.scrollLeft = Math.max(0, x - NAME_W - tl.clientWidth / 3);
+    }
+  }
+}
+/* dragging the ruler or the playhead moves the frame without rebuilding the timeline */
+function scrubFrame(e) {
+  const host = document.querySelector('#asTlBody .tlRuler .tlTrack');
+  if (!host) return;
+  const r = host.getBoundingClientRect();
+  ANIM.frame = clamp(Math.round((e.clientX - r.left) / CELL), 0, ANIM.frames - 1);
+  updatePlayhead();
+  updateFrameLabel();
+  renderStage();
+}
+function startScrub(e) {
+  e.preventDefault();
+  ANIM.scrubbing = true;
+  const move = ev => scrubFrame(ev);
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    ANIM.scrubbing = false;
+    renderAll();
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+  scrubFrame(e);
 }
 function updateFrameLabel() {
   $('asFrameLabel').textContent = `${ANIM.frame + 1} / ${ANIM.frames}`;
@@ -435,20 +469,14 @@ function renderTimeline() {
   ruler.append(el('div', 'tlName', t('الإطارات')));
   const rt = el('div', 'tlTrack');
   rt.style.width = trackW + 'px';
+  rt.style.touchAction = 'none';
+  rt.onpointerdown = startScrub;
   const step = ANIM.frames > 120 ? 10 : 5;
   for (let f = 0; f < ANIM.frames; f += step) {
     const n = el('span', 'tick', String(f + 1));
     n.style.left = f * CELL + 'px';
     rt.appendChild(n);
   }
-  rt.onpointerdown = e => {
-    const r = rt.getBoundingClientRect();
-    setFrame((e.clientX - r.left) / CELL);
-    rt.setPointerCapture(e.pointerId);
-    const move = ev => setFrame((ev.clientX - r.left) / CELL);
-    rt.onpointermove = move;
-    rt.onpointerup = () => { rt.onpointermove = null; rt.onpointerup = null; };
-  };
   ruler.append(rt);
   body.appendChild(ruler);
 
@@ -494,6 +522,7 @@ function renderTimeline() {
 
   const ph = el('div', 'playhead');
   ph.id = 'asPlayhead';
+  ph.onpointerdown = startScrub;
   body.appendChild(ph);
   updatePlayhead();
 }
@@ -502,20 +531,26 @@ function renderTimeline() {
 function startKeyDrag(e, l, kf) {
   e.stopPropagation(); e.preventDefault();
   selectLayer(l.id);
-  setFrame(kf.f);
   pushUndo();
+  const dia = e.currentTarget;
   const startX = e.clientX, f0 = kf.f;
+  ANIM.scrubbing = true;
   const move = ev => {
     const nf = clamp(f0 + Math.round((ev.clientX - startX) / CELL), 0, ANIM.frames - 1);
     if (nf !== kf.f && !l.kfs.some(k => k !== kf && k.f === nf)) {
       kf.f = nf;
       l.kfs.sort((a, b) => a.f - b.f);
-      renderAll();
+      dia.style.left = (kf.f * CELL) + 'px';
+      ANIM.frame = kf.f;
+      updatePlayhead();
+      updateFrameLabel();
+      renderStage();
     }
   };
   const up = () => {
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', up);
+    ANIM.scrubbing = false;
     setFrame(kf.f);
   };
   window.addEventListener('pointermove', move);
@@ -1206,25 +1241,42 @@ function bindStage() {
   bindGrip();
 }
 /* the grip above the timeline drags the bottom panel taller or shorter */
+function bottomRange() {
+  return { min: 150, max: Math.max(170, Math.round(innerHeight - 140)) };
+}
+function setBottomHeight(h, save) {
+  const { min, max } = bottomRange();
+  const v = clamp(Math.round(h), min, max);
+  $('asBottom').style.height = v + 'px';
+  if (save) { try { localStorage.setItem('cs-anim-bottom', String(v)); } catch (_) {} }
+  return v;
+}
+/* the grip above the timeline drags the bottom panel taller or shorter */
 function bindGrip() {
   const g = $('asGrip'), bottom = $('asBottom');
-  let st = null;
-  try { const saved = +localStorage.getItem('cs-anim-bottom'); if (saved) bottom.style.height = saved + 'px'; } catch (_) {}
+  let st = null, saved = 0;
+  try { saved = +localStorage.getItem('cs-anim-bottom') || 0; } catch (_) {}
+  setBottomHeight(saved || innerHeight * 0.38, false);
   g.addEventListener('pointerdown', e => {
     g.setPointerCapture(e.pointerId);
     st = { y: e.clientY, h: bottom.offsetHeight };
   });
   g.addEventListener('pointermove', e => {
     if (!st) return;
-    const h = clamp(st.h + (st.y - e.clientY), 150, Math.round(window.innerHeight * 0.7));
-    bottom.style.height = h + 'px';
+    setBottomHeight(st.h + (st.y - e.clientY), true);
     renderStage();
     renderGraph();
-    try { localStorage.setItem('cs-anim-bottom', String(h)); } catch (_) {}
   });
   const end = () => { st = null; };
   g.addEventListener('pointerup', end);
   g.addEventListener('pointercancel', end);
+  // rotating the phone changes the room available: keep the panel inside it
+  window.addEventListener('resize', () => {
+    if (!ANIM.open) return;
+    setBottomHeight(bottom.offsetHeight, false);
+    renderStage();
+    renderGraph();
+  });
 }
 function zoomBy(f) {
   ANIM.zoom = clamp(ANIM.zoom * f, 0.2, 8);
@@ -1478,6 +1530,10 @@ function renameAnim() {
 }
 function toggleGraph() {
   ANIM.graphOpen = !ANIM.graphOpen;
+  if (ANIM.graphOpen) {
+    const want = innerHeight < 500 ? innerHeight * 0.7 : innerHeight * 0.5;
+    setBottomHeight(Math.max($('asBottom').offsetHeight, want), true);
+  }
   $('asGraphPanel').classList.toggle('on', ANIM.graphOpen);
   $('asTlBody').parentElement.classList.toggle('short', ANIM.graphOpen);
   renderAll();
