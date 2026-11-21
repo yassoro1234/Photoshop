@@ -104,3 +104,7 @@
 #asBrushBar.on { display: flex; }
 #asBrushBar input[type=range] { width: 120px; }
 #asBrushBar input[type=color] { width: 34px; height: 26px; padding: 0; border: none; background: none; }
+
+#asBrushBar .penOnly { display: none; }
+#asBrushBar.pen .penOnly { display: inline-flex; }
+#asBrushBar button { font: inherit; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); color: var(--txt); }

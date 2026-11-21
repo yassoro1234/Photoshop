@@ -6,6 +6,7 @@
    six properties; its `ease` and `bez` describe the segment that starts at that keyframe. */
 const ANIM = {
   brush: { size: 24, color: '#000000' },
+  pen: null,                      // open path being drawn: { pts: [{x,y}] } in document units
   open: false, id: null, name: 'Untitled', touched: false, dirty: false,
   W: 1920, H: 1080, bg: '#ffffff', fps: 24, frames: 120,
   frame: 0, playing: false, loop: true,
@@ -194,6 +195,7 @@ function renderStage() {
   drawScene(c, ANIM.frame);
   const sl = selLayer();
   if (sl) drawSelection(c, sl, k);
+  if (ANIM.pen && ANIM.pen.pts.length) drawPenPreview(c, k);
   c.setTransform(1, 0, 0, 1, 0, 0);
 }
 function drawSelection(c, l, k) {
@@ -778,6 +780,139 @@ async function paintEnd() {
   scheduleAnimSave();
 }
 
+/* ---------- pen, bucket and eyedropper ---------- */
+function drawPenPreview(c, k) {
+  const pts = ANIM.pen.pts;
+  c.save();
+  c.strokeStyle = ANIM.brush.color;
+  c.lineWidth = 2 / k;
+  c.setLineDash([6 / k, 4 / k]);
+  c.beginPath();
+  pts.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)));
+  c.stroke();
+  c.setLineDash([]);
+  c.fillStyle = '#fff';
+  pts.forEach((q, i) => {
+    c.beginPath(); c.arc(q.x, q.y, (i === 0 ? 7 : 5) / k, 0, Math.PI * 2); c.fill(); c.stroke();
+  });
+  c.restore();
+}
+function ensureDrawTarget() {
+  const l = selLayer();
+  if (l && l.type === 'draw' && !l.lock) return l;
+  return newDrawLayer();
+}
+/* stores a finished bitmap as a new image key, so undo keeps the old one */
+async function commitCanvas(l, c) {
+  const url = c.toDataURL('image/png');
+  const key = uid();
+  ANIM.imgs[key] = url;
+  await animImgLoad(key, url);
+  l.key = key;
+  renderAll();
+  scheduleAnimSave();
+}
+function hexRGB(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+/* flood fill of the draw layer from the clicked point, similar colors within a tolerance */
+async function bucketAt(d) {
+  const cur = selLayer();
+  if (cur && cur.lock) return toast(t('الطبقة مقفلة'));
+  const l = ensureDrawTarget();
+  pushUndo();
+  const im = ASI[l.key];
+  const dim = imgDims(im), W = dim.w, H = dim.h;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  x.drawImage(im, 0, 0);
+  const lp = layerLocal(l, layerPropsAt(l, ANIM.frame), d);
+  const px = Math.floor((lp.x + l.w / 2) * W / l.w), py = Math.floor((lp.y + l.h / 2) * H / l.h);
+  if (px < 0 || py < 0 || px >= W || py >= H) return;
+  const img = x.getImageData(0, 0, W, H), data = img.data;
+  const si = (py * W + px) * 4;
+  const tr = data[si], tg = data[si + 1], tb = data[si + 2], ta = data[si + 3];
+  const [fr, fg, fb] = hexRGB(ANIM.brush.color);
+  if (tr === fr && tg === fg && tb === fb && ta === 255) return;
+  const tol = 40;
+  const match = i => Math.abs(data[i] - tr) + Math.abs(data[i + 1] - tg) + Math.abs(data[i + 2] - tb) + Math.abs(data[i + 3] - ta) <= tol;
+  const seen = new Uint8Array(W * H);
+  const stack = [py * W + px];
+  while (stack.length) {
+    const p = stack.pop();
+    if (seen[p]) continue;
+    seen[p] = 1;
+    const i = p * 4;
+    if (!match(i)) continue;
+    data[i] = fr; data[i + 1] = fg; data[i + 2] = fb; data[i + 3] = 255;
+    const xx = p % W, yy = (p - xx) / W;
+    if (xx > 0) stack.push(p - 1);
+    if (xx < W - 1) stack.push(p + 1);
+    if (yy > 0) stack.push(p - W);
+    if (yy < H - 1) stack.push(p + W);
+  }
+  x.putImageData(img, 0, 0);
+  await commitCanvas(l, c);
+}
+/* samples the composed scene at the clicked point, then returns to the brush */
+function pickColorAt(d) {
+  const px = Math.floor(d.x), py = Math.floor(d.y);
+  if (px < 0 || py < 0 || px >= ANIM.W || py >= ANIM.H) return;
+  const c = document.createElement('canvas');
+  c.width = ANIM.W; c.height = ANIM.H;
+  const x = c.getContext('2d');
+  drawScene(x, ANIM.frame);
+  const [r, g, b] = x.getImageData(px, py, 1, 1).data;
+  ANIM.brush.color = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  $('asBrushColor').value = ANIM.brush.color;
+  setAnimTool('brush');
+  toast(ANIM.brush.color);
+}
+/* pen: each click adds a point; a click near the first point closes the path */
+function penClick(d) {
+  if (!ANIM.pen) ANIM.pen = { pts: [] };
+  const pts = ANIM.pen.pts;
+  if (pts.length > 2 && Math.hypot(d.x - pts[0].x, d.y - pts[0].y) <= 16 / ANIM.k) return penFinish(true);
+  pts.push({ x: d.x, y: d.y });
+  renderStage();
+}
+async function penFinish(closed) {
+  const pen = ANIM.pen;
+  ANIM.pen = null;
+  if (!pen || pen.pts.length < 2) { renderStage(); return; }
+  const l = ensureDrawTarget();
+  pushUndo();
+  const p = layerPropsAt(l, ANIM.frame);
+  const im = ASI[l.key];
+  const dim = imgDims(im);
+  const c = document.createElement('canvas');
+  c.width = dim.w; c.height = dim.h;
+  const x = c.getContext('2d');
+  x.drawImage(im, 0, 0);
+  const scale = Math.sqrt(Math.abs(p.sx * p.sy)) || 1;
+  const width = Math.max(1, ANIM.brush.size / scale * dim.w / l.w);
+  const bp = pen.pts.map(q => {
+    const lp = layerLocal(l, p, q);
+    return { x: (lp.x + l.w / 2) * dim.w / l.w, y: (lp.y + l.h / 2) * dim.h / l.h };
+  });
+  x.save();
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  x.strokeStyle = ANIM.brush.color; x.lineWidth = width;
+  x.beginPath();
+  x.moveTo(bp[0].x, bp[0].y);
+  bp.slice(1).forEach(q => x.lineTo(q.x, q.y));
+  if (closed) x.closePath();
+  x.stroke();
+  x.restore();
+  await commitCanvas(l, c);
+}
+function penCancel() {
+  ANIM.pen = null;
+  renderStage();
+}
+
 /* ---------- stage interaction ---------- */
 let stageDrag = null;
 function bindStage() {
@@ -793,6 +928,9 @@ function bindStage() {
       return;
     }
     if (ANIM.tool === 'brush' || ANIM.tool === 'eraser') { paintStart(d); return; }
+    if (ANIM.tool === 'bucket') { bucketAt(d); return; }
+    if (ANIM.tool === 'eyedrop') { pickColorAt(d); return; }
+    if (ANIM.tool === 'pen') { penClick(d); return; }
     const sl = selLayer();
     if (ANIM.tool === 'select' && sl && !sl.lock) {
       const h = handleAt(sl, d);
@@ -885,7 +1023,9 @@ function setAnimTool(id) {
   ANIM.tool = id;
   document.querySelectorAll('#asTools button').forEach(b => b.classList.toggle('on', b.dataset.tool === id));
   const bb = $('asBrushBar');
-  if (bb) bb.classList.toggle('on', id === 'brush' || id === 'eraser');
+  if (id !== 'pen') ANIM.pen = null;
+  if (bb) bb.classList.toggle('on', ['brush', 'eraser', 'pen', 'bucket'].includes(id));
+  if (bb) bb.classList.toggle('pen', id === 'pen');
   $('asCv').style.cursor = id === 'hand' ? 'grab' : id === 'zoom' ? 'zoom-in' : 'crosshair';
 }
 
@@ -1229,7 +1369,7 @@ function buildAnimUI() {
   /* tools */
   const tools = $('asTools');
   [['select', '↖', 'تحديد'], ['hand', '✋', 'يد'], ['zoom', '🔍', 'تكبير'],
-   ['text', 'T', 'نص'], ['rect', '▭', 'مستطيل'], ['ellipse', '◯', 'دائرة'], ['brush', '🖌', 'فرشاة'], ['eraser', '⌫', 'ممحاة']].forEach(([id, ic, lab]) => {
+   ['text', 'T', 'نص'], ['rect', '▭', 'مستطيل'], ['ellipse', '◯', 'دائرة'], ['brush', '🖌', 'فرشاة'], ['eraser', '⌫', 'ممحاة'], ['pen', '✒', 'قلم'], ['bucket', '🪣', 'تعبئة'], ['eyedrop', '💧', 'قطارة الألوان']].forEach(([id, ic, lab]) => {
     const b = el('button', 'asTool', ic);
     b.dataset.tool = id; b.title = t(lab);
     b.onclick = () => setAnimTool(id);
@@ -1239,10 +1379,12 @@ function buildAnimUI() {
 
   const bar = el('div', '');
   bar.id = 'asBrushBar';
-  bar.innerHTML = `<label>${t('حجم')} <input type="range" id="asBrushSize" min="2" max="200" value="${ANIM.brush.size}"> <span id="asBrushVal">${ANIM.brush.size}</span></label><label>${t('لون')} <input type="color" id="asBrushColor" value="${ANIM.brush.color}"></label>`;
+  bar.innerHTML = `<label>${t('حجم')} <input type="range" id="asBrushSize" min="2" max="200" value="${ANIM.brush.size}"> <span id="asBrushVal">${ANIM.brush.size}</span></label><label>${t('لون')} <input type="color" id="asBrushColor" value="${ANIM.brush.color}"></label><button id="asPenDone" class="penOnly">✓ ${t('إنهاء')}</button><button id="asPenCancel" class="penOnly">✕ ${t('إلغاء')}</button>`;
   $('asStageWrap').appendChild(bar);
   $('asBrushSize').oninput = e => { ANIM.brush.size = +e.target.value; $('asBrushVal').textContent = e.target.value; };
   $('asBrushColor').oninput = e => { ANIM.brush.color = e.target.value; };
+  $('asPenDone').onclick = () => penFinish(false);
+  $('asPenCancel').onclick = penCancel;
 
   $('asHome').onclick = () => closeAnimScreen();
   $('asName').onclick = renameAnim;
@@ -1311,5 +1453,8 @@ function animKeys(e) {
   if (k === 'o') return setAnimTool('ellipse');
   if (k === 'b') return setAnimTool('brush');
   if (k === 'e') return setAnimTool('eraser');
+  if (k === 'p') return setAnimTool('pen');
+  if (k === 'g') return setAnimTool('bucket');
+  if (k === 'i') return setAnimTool('eyedrop');
 }
 
