@@ -51,6 +51,9 @@
 .asRow button { padding: 3px 7px; }
 .menuList { display: flex; flex-direction: column; gap: 6px; }
 .menuItem { text-align: start; padding: 10px 12px !important; }
+/* menu rows in the file/edit dialogs: solid light buttons with black, bold text so they read clearly */
+#modal .menuItem { background: #f4f4f4; color: #000; border: 1px solid #8a8a8a; font-weight: 700; font-size: 16px; }
+#modal .menuItem:hover, #modal .menuItem:active { background: #dcdcdc; }
 
 /* bottom: controls, timeline, graph */
 #asBottom { display: flex; flex-direction: column; height: 300px; overflow: hidden; border-top: 1px solid var(--line); background: var(--panel); min-height: 0; }
