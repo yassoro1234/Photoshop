@@ -5,6 +5,7 @@ const TOOL_LIST = [
   { id: 'marquee', name: 'Marquee Selection', icon: '▭', img: '02_rectangular_marquee.png', key: 'M' },
   { id: 'lasso',   name: 'Lasso',             icon: '⌒', img: '04_lasso.png', key: 'L' },
   { id: 'quick',   name: 'Quick Selection',   icon: '✦', img: 'quick_selection_tool.png', key: 'W' },
+  { id: 'wand',    name: 'Magic Wand',        icon: '✧', img: '05_magic_wand.png', key: 'Y' },
   { id: 'crop',    name: 'Crop',              icon: '⌗', img: '06_crop.png', key: 'C' },
   { id: 'brush',   name: 'Brush',             icon: '✎', img: '08_brush.png', key: 'B' },
   { id: 'eraser',  name: 'Eraser',            icon: '⌫', img: '10_eraser.png', key: 'E' },
@@ -192,42 +193,6 @@ defTool('move', {
   }
 });
 
-defTool('marquee', {
-  cursor: 'crosshair',
-  move(p, e, d) {
-    state.preview = Object.assign({ kind: 'rect' }, normRect(d.start, p));
-    drawOverlay();
-  },
-  up(p, e, d) {
-    state.preview = null;
-    const r = normRect(d.start, p);
-    if (r.w < 2 || r.h < 2) { clearSelection(); return; }
-    setSelection(rectMask(r), null, r);
-  },
-  cancel() { state.preview = null; drawOverlay(); }
-});
-
-defTool('lasso', {
-  cursor: 'crosshair',
-  down(p, e, d) { d.pts = [p]; },
-  move(p, e, d) {
-    d.pts.push(p);
-    state.preview = { kind: 'poly', pts: d.pts };
-    drawOverlay();
-  },
-  up(p, e, d) {
-    state.preview = null;
-    if (d.pts.length < 3) return drawOverlay();
-    const m = mkCanvas(state.W, state.H), x = m.getContext('2d');
-    x.fillStyle = '#000';
-    x.beginPath();
-    d.pts.forEach((q, i) => i ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y));
-    x.closePath(); x.fill();
-    setSelection(m, d.pts, polyBox(d.pts));
-  },
-  cancel() { state.preview = null; drawOverlay(); }
-});
-
 defTool('quick', {
   cursor: 'crosshair',
   down(p) {
@@ -240,20 +205,6 @@ defTool('quick', {
     for (let i = 0; i < reg.inc.length; i++) if (reg.inc[i]) dd[i * 4 + 3] = 255;
     x.putImageData(img, 0, 0);
     setSelection(m, null, reg.box);
-  }
-});
-
-defTool('crop', {
-  cursor: 'crosshair',
-  down(p, e, d) { d.start = p; },
-  move(p, e, d) {
-    state.crop = normRect(d.start, p);
-    drawOverlay();
-  },
-  up(p, e, d) {
-    if (!state.crop || state.crop.w < 2 || state.crop.h < 2) state.crop = null;
-    buildOpts();
-    drawOverlay();
   }
 });
 
@@ -421,6 +372,7 @@ function cancelPen() { state.pen = null; drawOverlay(); }
 /* ---------- tool switching ---------- */
 function setTool(id) {
   if (state.pen) cancelPen();
+  if (polyActive() && id !== 'lasso') polyCancel();
   if (state.ft) ftCommit();
   state.tool = id;
   const tl = TOOL_LIST.find(x => x.id === id);

@@ -310,16 +310,36 @@ function buildOpts() {
       html += bounded('brushSize', 'سُمك الخط', 1, 200, 12);
       html += btn('penDone', 'إنهاء المسار') + btn('penCancel', 'إلغاء');
       break;
-    case 'crop':
+    case 'crop': {
+      const ratios = [['free', 'حرة'], ['1:1', '1:1'], ['4:3', '4:3'], ['3:2', '3:2'], ['16:9', '16:9'], ['9:16', '9:16'], ['original', 'الأصلية']];
+      html += `<span>${esc(t('النسبة'))}</span> <select id="cropRatio">${ratios.map(([v, lab]) =>
+        `<option value="${v}"${(OPT.cropRatio ?? 'free') === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
       if (state.crop) html += btn('cropApply', 'تطبيق (Enter)', 'pri') + btn('cropCancel', 'إلغاء (Esc)');
       else html += hint('اسحب لتحديد منطقة القص');
       break;
+    }
     case 'zoom':
       html += btn('zoomOutToggle', 'تصغير', state.zoomOut ? 'on' : '');
       break;
-    case 'marquee': case 'lasso':
+    case 'marquee': case 'lasso': case 'wand': {
+      const pick = (id, label, opts, def) => `<span>${esc(t(label))}</span> <select id="${id}">${opts.map(([v, lab]) =>
+        `<option value="${v}"${(OPT[id] ?? def) === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
+      const modes = [['new', 'جديد'], ['add', 'إضافة'], ['subtract', 'طرح'], ['intersect', 'تقاطع']];
+      if (state.tool === 'marquee') {
+        html += pick('selShape', 'الشكل', [['rect', 'مستطيل'], ['ellipse', 'إهليلج'], ['row', 'صف بكسل'], ['column', 'عمود بكسل']], 'rect');
+        html += pick('selMode', 'الوضع', modes, 'new') + bounded('feather', 'تنعيم', 0, 250, 0);
+      } else if (state.tool === 'lasso') {
+        html += pick('lassoType', 'النوع', [['free', 'حر'], ['poly', 'متعدد الأضلاع']], 'free');
+        html += pick('selMode', 'الوضع', modes, 'new') + bounded('feather', 'تنعيم', 0, 250, 0);
+        if (polyActive()) html += btn('polyDone', 'إنهاء المضلع', 'pri') + btn('polyCancel', 'إلغاء المضلع') + hint('انقر لإضافة نقاط، وانقر البداية أو انقر مرتين للإغلاق');
+      } else {
+        html += bounded('tolerance', 'التسامح', 0, 255, 32);
+        html += pick('wandMode', 'النطاق', [['contig', 'متصل'], ['global', 'كل الألوان المشابهة']], 'contig');
+        html += pick('selMode', 'الوضع', modes, 'new') + bounded('feather', 'تنعيم', 0, 250, 0);
+      }
       html += btn('selAll', 'الكل') + btn('selNone', 'إلغاء التحديد') + btn('selInv', 'عكس');
       break;
+    }
     case 'eyedrop':
       html += `<span>${esc(t('العينة من'))}</span> <select id="sampleSrc">
         <option value="all"${state.sampleSrc === 'all' ? ' selected' : ''}>${esc(t('كل الطبقات'))}</option>
@@ -348,7 +368,7 @@ function buildOpts() {
 }
 
 function bindOpts() {
-  ['brushSize', 'brushAlpha', 'tolerance', 'textSize'].forEach(id => {
+  ['brushSize', 'brushAlpha', 'tolerance', 'textSize', 'feather'].forEach(id => {
     const e = $(id); if (!e) return;
     e.oninput = () => { OPT[id] = parseFloat(e.value) || OPT[id]; };
   });
@@ -363,6 +383,12 @@ function bindOpts() {
   on('selAll', selectAll);
   on('selNone', clearSelection);
   on('selInv', invertSelection);
+  on('polyDone', polyFinish);
+  on('polyCancel', polyCancel);
+  ['selShape', 'selMode', 'lassoType', 'wandMode', 'cropRatio'].forEach(id => {
+    const e = $(id); if (!e) return;
+    e.onchange = () => { OPT[id] = e.value; if (id === 'lassoType') buildOpts(); };
+  });
   on('fitBtn', resetView);
   on('panelBtn', togglePanel);
   on('textProps', editTextLayer);

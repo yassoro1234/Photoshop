@@ -109,16 +109,9 @@ function drawOverlay() {
   const dashed = () => { x.setLineDash([5 / z, 4 / z]); };
 
   if (state.sel) {
-    x.save(); dashed();
-    x.strokeStyle = '#fff';
-    if (state.sel.poly) {
-      x.beginPath();
-      state.sel.poly.forEach((p, i) => i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y));
-      x.closePath(); x.stroke();
-    } else if (state.sel.box) {
-      const b = state.sel.box;
-      x.strokeRect(b.x, b.y, b.w, b.h);
-    }
+    if (!state.sel.edge) state.sel.edge = buildEdge(state.sel.mask);   // marching-ants outline, built once per selection
+    x.save(); x.imageSmoothingEnabled = false;
+    x.drawImage(state.sel.edge, 0, 0);
     x.restore();
   }
 
@@ -126,6 +119,7 @@ function drawOverlay() {
   if (p) {
     x.save(); dashed(); x.strokeStyle = '#7fb6ff';
     if (p.kind === 'rect') x.strokeRect(p.x, p.y, p.w, p.h);
+    if (p.kind === 'ellipse') { x.beginPath(); x.ellipse(p.x + p.w / 2, p.y + p.h / 2, p.w / 2, p.h / 2, 0, 0, Math.PI * 2); x.stroke(); }
     if (p.kind === 'line') { x.beginPath(); x.moveTo(p.a.x, p.a.y); x.lineTo(p.b.x, p.b.y); x.stroke(); }
     if (p.kind === 'poly' && p.pts.length > 1) {
       x.beginPath();
