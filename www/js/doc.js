@@ -72,31 +72,72 @@ function render() {
   const comp = $('comp');
   const x = comp.getContext('2d');
   x.clearRect(0, 0, state.W, state.H);
-  for (const l of state.layers) {
-    if (!isRaster(l) || !isLayerVisible(l)) continue;
-    x.globalAlpha = l.opacity;
-    x.globalCompositeOperation = l.blend;
-    if (state.ft && state.ft.id === l.id) {     // live preview of a free transform
-      x.save(); ftApply(x, state.ft); x.drawImage(state.ft.src, 0, 0); x.restore();
-      continue;
-    }
-    if (l.mask) {
-      const s = scratch(), sx = s.getContext('2d');
-      sx.globalCompositeOperation = 'source-over';
-      sx.clearRect(0, 0, s.width, s.height);
-      sx.drawImage(l.canvas, 0, 0);
-      sx.globalCompositeOperation = 'destination-in';
-      sx.drawImage(l.mask, 0, 0);
-      x.drawImage(s, 0, 0);
-    } else {
-      x.drawImage(l.canvas, 0, 0);
-    }
-  }
-  x.globalAlpha = 1;
-  x.globalCompositeOperation = 'source-over';
+  drawStack(x, state.layers, true);
   drawOverlay();
   $('docInfo').textContent = infoText(state.W, state.H, state.layers.filter(isRaster).length);
   updateTitle();
+}
+
+/* reusable scratch canvases, one per name, sized to the document */
+const _tmp = {};
+function tmpCanvas(key) {
+  let c = _tmp[key];
+  if (!c || c.width !== state.W || c.height !== state.H) c = _tmp[key] = mkCanvas(state.W, state.H);
+  return c;
+}
+/* a raster layer's pixels with its mask applied, drawn with the context's current composite settings */
+function drawLayerPixels(x, l) {
+  if (l.mask) {
+    const s = tmpCanvas('mask'), sx = s.getContext('2d');
+    sx.globalCompositeOperation = 'source-over';
+    sx.clearRect(0, 0, s.width, s.height);
+    sx.drawImage(l.canvas, 0, 0);
+    sx.globalCompositeOperation = 'destination-in';
+    sx.drawImage(l.mask, 0, 0);
+    x.drawImage(s, 0, 0);
+  } else {
+    x.drawImage(l.canvas, 0, 0);
+  }
+}
+/* Draws the visible raster layers in order. A layer marked clip is drawn only where the layer
+   below it (its base) has pixels; the base and its clipped layers form one group. */
+function drawStack(x, layers, live) {
+  for (let i = 0; i < layers.length; i++) {
+    const l = layers[i];
+    if (!isRaster(l) || !isLayerVisible(l) || l.clip) continue;
+    x.globalAlpha = l.opacity;
+    x.globalCompositeOperation = l.blend;
+    if (live && state.ft && state.ft.id === l.id) {     // live preview of a free transform
+      x.save(); ftApply(x, state.ft); x.drawImage(state.ft.src, 0, 0); x.restore();
+      continue;
+    }
+    const clipped = [];
+    for (let j = i + 1; j < layers.length && layers[j].clip && isRaster(layers[j]); j++) {
+      if (isLayerVisible(layers[j])) clipped.push(layers[j]);
+    }
+    if (!clipped.length) { drawLayerPixels(x, l); continue; }
+    const g = tmpCanvas('group'), gx = g.getContext('2d');
+    const base = tmpCanvas('base'), bx = base.getContext('2d');
+    gx.clearRect(0, 0, g.width, g.height);
+    gx.globalAlpha = 1; gx.globalCompositeOperation = 'source-over';
+    drawLayerPixels(gx, l);
+    bx.clearRect(0, 0, base.width, base.height);
+    bx.drawImage(g, 0, 0);
+    for (const c of clipped) {
+      const t = tmpCanvas('clip'), tx = t.getContext('2d');
+      tx.clearRect(0, 0, t.width, t.height);
+      tx.globalAlpha = 1; tx.globalCompositeOperation = 'source-over';   // the scratch context keeps its last settings
+      drawLayerPixels(tx, c);
+      tx.globalCompositeOperation = 'destination-in';
+      tx.drawImage(base, 0, 0);
+      gx.globalAlpha = c.opacity;
+      gx.globalCompositeOperation = c.blend;
+      gx.drawImage(t, 0, 0);
+    }
+    x.drawImage(g, 0, 0);
+  }
+  x.globalAlpha = 1;
+  x.globalCompositeOperation = 'source-over';
 }
 
 /* ---------- overlay: selection, crop, previews ---------- */
@@ -376,6 +417,39 @@ function flattenAll() {
   }
   out.ctx.globalAlpha = 1; out.ctx.globalCompositeOperation = 'source-over';
   state.layers = [out]; state.active = 0;
+  pushHistory(); render(); refreshLayers();
+}
+/* merges every visible raster layer into one, keeping hidden layers where they are */
+function mergeVisible() {
+  const vis = state.layers.filter(l => isRaster(l) && isLayerVisible(l));
+  if (vis.length < 2) return toast(t('لا توجد طبقات مرئية كافية للدمج'));
+  const out = nameLayer(makeLayer(''), 'Merged');
+  drawStack(out.ctx, vis, false);
+  let top = -1;
+  state.layers.forEach((l, i) => { if (vis.includes(l)) top = i; });
+  const before = state.layers.slice(0, top).filter(l => !vis.includes(l)).length;
+  const rest = state.layers.filter(l => !vis.includes(l));
+  rest.splice(before, 0, out);
+  state.layers = rest; state.active = before;
+  pushHistory(); render(); refreshLayers();
+}
+/* a clipped layer uses the raster layer directly below it as its base */
+function toggleClip() {
+  const l = cur(); if (!isRaster(l)) return toast(t('الطبقة يجب أن تكون بكسل'));
+  if (!l.clip) {
+    const below = state.layers[state.active - 1];
+    if (!isRaster(below)) return toast(t('الطبقة التي تحتها يجب أن تكون بكسل'));
+  }
+  l.clip = !l.clip;
+  pushHistory(); render(); refreshLayers();
+}
+/* removes a group and keeps its layers */
+function ungroup() {
+  const g = cur();
+  if (!g || g.type !== 'group') return toast(t('اختر مجموعة'));
+  state.layers.forEach(x => { if (x.group === g.id) x.group = null; });
+  state.layers.splice(state.active, 1);
+  state.active = clamp(state.active, 0, state.layers.length - 1);
   pushHistory(); render(); refreshLayers();
 }
 function maskedCopy(l) {

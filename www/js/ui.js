@@ -143,6 +143,9 @@ function menuDefs() {
       { label: 'نقل للأعلى', fn: () => moveLayer(1) },
       { label: 'نقل للأسفل', fn: () => moveLayer(-1) },
       { label: 'دمج مع ما تحتها', fn: mergeDown },
+      { label: 'دمج المرئية', fn: mergeVisible },
+      { label: 'قص للطبقة السفلية', fn: toggleClip },
+      { label: 'فك المجموعة', fn: ungroup },
       { label: 'تسطيح الكل', fn: flattenAll },
       { sep: 1 },
       { label: 'إضافة قناع', fn: addMask },
@@ -465,7 +468,7 @@ function layerRow(i) {
 
   const name = document.createElement('span');
   name.className = 'name';
-  name.textContent = (l.type === 'group' ? '📁 ' : '') + layerName(l);
+  name.textContent = (l.type === 'group' ? '📁 ' : '') + (l.clip ? '↳ ' : '') + layerName(l);
   row.appendChild(name);
 
   const badges = [];
@@ -557,6 +560,7 @@ function layerMenuItems(i) {
     { label: t('تكرار الطبقة'), fn: duplicateLayer },
     { label: t('إعادة تسمية…'), fn: renameLayer },
     { label: t('دمج مع ما تحتها'), fn: mergeDown },
+    { label: t('قص للطبقة السفلية'), fn: toggleClip },
     { sep: 1 },
     { label: t('طبقة جديدة'), fn: addLayer },
     { label: t('مجموعة جديدة'), fn: addGroup },
