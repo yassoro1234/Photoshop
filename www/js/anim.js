@@ -17,7 +17,7 @@ const ANIM = {
   tool: 'select', graphOpen: false, graphProp: 'x',
   undo: [], redo: []
 };
-const ANIM_ICON = {"select": "move_tool.png", "hand": "hand_tool.png", "zoom": "zoom_tool.png", "text": "horizontal_type_tool.png", "rect": "rectangle_shape_tool.png", "ellipse": "ellipse_shape_tool.png", "brush": "brush_tool.png", "eraser": "eraser_tool.png", "pen": "pen_tool.png", "bucket": "paint_bucket_animate_tool.png", "eyedrop": "eyedropper_animate_tool.png"};   // tool id -> icon file in www/icons
+const ANIM_ICON = {"select": "01_move.png", "hand": "22_hand.png", "zoom": "23_zoom.png", "text": "17_text.png", "rect": "18_rectangle.png", "ellipse": "19_ellipse.png", "brush": "08_brush.png", "eraser": "10_eraser.png", "pen": "14_pen.png", "bucket": "13_paint_bucket.png", "eyedrop": "07_eyedropper.png"};   // tool id -> icon file in www/icons
 const ASI = {};
 const LIVE = {};                      // live stroke canvas of a draw layer: id -> canvas                      // image cache: key -> HTMLImageElement
 const AP_PROPS = ['x', 'y', 'sx', 'sy', 'rot', 'op'];

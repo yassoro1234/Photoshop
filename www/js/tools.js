@@ -1,21 +1,21 @@
 /* ===== Tools & pointer handling ===== */
 
 const TOOL_LIST = [
-  { id: 'move',    name: 'Move',              icon: '✥', img: 'move_tool.png', key: 'V' },
-  { id: 'marquee', name: 'Marquee Selection', icon: '▭', img: 'rectangular_marquee_tool.png', key: 'M' },
-  { id: 'lasso',   name: 'Lasso',             icon: '⌒', img: 'lasso_tool.png', key: 'L' },
+  { id: 'move',    name: 'Move',              icon: '✥', img: '01_move.png', key: 'V' },
+  { id: 'marquee', name: 'Marquee Selection', icon: '▭', img: '02_rectangular_marquee.png', key: 'M' },
+  { id: 'lasso',   name: 'Lasso',             icon: '⌒', img: '04_lasso.png', key: 'L' },
   { id: 'quick',   name: 'Quick Selection',   icon: '✦', img: 'quick_selection_tool.png', key: 'W' },
-  { id: 'crop',    name: 'Crop',              icon: '⌗', img: 'crop_tool.png', key: 'C' },
-  { id: 'brush',   name: 'Brush',             icon: '✎', img: 'brush_tool.png', key: 'B' },
-  { id: 'eraser',  name: 'Eraser',            icon: '⌫', img: 'eraser_tool.png', key: 'E' },
-  { id: 'clone',   name: 'Clone Stamp',       icon: '⎘', img: 'clone_stamp_tool.png', key: 'S' },
-  { id: 'gradient',name: 'Gradient',          icon: '◧', img: 'gradient_tool.png', key: 'G' },
-  { id: 'bucket',  name: 'Paint Bucket',      icon: '◍', img: 'paint_bucket_tool.png', key: 'K' },
-  { id: 'text',    name: 'Text',              icon: 'T', img: 'text_tool.png', key: 'T' },
-  { id: 'pen',     name: 'Pen',               icon: '✒', img: 'pen_tool.png', key: 'P' },
-  { id: 'eyedrop', name: 'Eyedropper',        icon: '⌖', img: 'eyedropper_tool.png', key: 'I' },
-  { id: 'hand',    name: 'Hand',              icon: '✋', img: 'hand_tool.png', key: 'H' },
-  { id: 'zoom',    name: 'Zoom',              icon: '⌕', img: 'zoom_tool.png', key: 'Z' }
+  { id: 'crop',    name: 'Crop',              icon: '⌗', img: '06_crop.png', key: 'C' },
+  { id: 'brush',   name: 'Brush',             icon: '✎', img: '08_brush.png', key: 'B' },
+  { id: 'eraser',  name: 'Eraser',            icon: '⌫', img: '10_eraser.png', key: 'E' },
+  { id: 'clone',   name: 'Clone Stamp',       icon: '⎘', img: '11_clone_stamp.png', key: 'S' },
+  { id: 'gradient',name: 'Gradient',          icon: '◧', img: '12_gradient.png', key: 'G' },
+  { id: 'bucket',  name: 'Paint Bucket',      icon: '◍', img: '13_paint_bucket.png', key: 'K' },
+  { id: 'text',    name: 'Text',              icon: 'T', img: '17_text.png', key: 'T' },
+  { id: 'pen',     name: 'Pen',               icon: '✒', img: '14_pen.png', key: 'P' },
+  { id: 'eyedrop', name: 'Eyedropper',        icon: '⌖', img: '07_eyedropper.png', key: 'I' },
+  { id: 'hand',    name: 'Hand',              icon: '✋', img: '22_hand.png', key: 'H' },
+  { id: 'zoom',    name: 'Zoom',              icon: '⌕', img: '23_zoom.png', key: 'Z' }
 ];
 
 const pointers = new Map();
