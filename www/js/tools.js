@@ -2,7 +2,7 @@
 
 const TOOL_LIST = [
   { id: 'move',    name: 'Move',              icon: '✥', img: 'move_tool.png', key: 'V' },
-  { id: 'marquee', name: 'Marquee Selection', icon: '▭', img: 'marquee_tool.png', key: 'M' },
+  { id: 'marquee', name: 'Marquee Selection', icon: '▭', img: 'rectangular_marquee_tool.png', key: 'M' },
   { id: 'lasso',   name: 'Lasso',             icon: '⌒', img: 'lasso_tool.png', key: 'L' },
   { id: 'quick',   name: 'Quick Selection',   icon: '✦', img: 'quick_selection_tool.png', key: 'W' },
   { id: 'crop',    name: 'Crop',              icon: '⌗', img: 'crop_tool.png', key: 'C' },
