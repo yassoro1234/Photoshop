@@ -11,6 +11,8 @@ const state = {
   ft: null,            // free transform in progress {id, src, box, sx, sy, rot, ox, oy}
   sel: null,           // {mask:canvas, poly:[{x,y}]|null, box:{x,y,w,h}}
   crop: null,          // {x,y,w,h} while cropping
+  lastSel: null,       // the selection before the last deselect, for Reselect
+  selections: {},      // saved selections: name -> mask canvas (written into the project)
   preview: null,       // overlay preview shape
   pen: null,           // {pts:[]} while drawing a pen path
   cloneSrc: null,      // {x,y,off} clone tool source

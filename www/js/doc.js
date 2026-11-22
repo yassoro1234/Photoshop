@@ -161,6 +161,7 @@ function setSelection(mask, poly, box) {
   drawOverlay();
 }
 function clearSelection() {
+  if (state.sel) state.lastSel = state.sel;
   state.sel = null;
   drawOverlay();
 }
@@ -283,7 +284,7 @@ function newDoc(w = 1280, h = 800, bg = null, name = 'Untitled') {
   state.W = w; state.H = h;
   state.layers = []; state.active = -1;
   state.undo = []; state.redo = [];
-  state.sel = null; state.crop = null; state.preview = null; state.pen = null; state.ft = null;
+  state.sel = null; state.crop = null; state.preview = null; state.pen = null; state.ft = null; state.selections = {};
   state.docName = name; state.dirty = false; state.projectId = null;
   const l = nameLayer(makeLayer(''), 'Background');
   if (bg) { l.ctx.fillStyle = bg; l.ctx.fillRect(0, 0, w, h); }

@@ -338,6 +338,13 @@ function buildOpts() {
         html += pick('selMode', 'الوضع', modes, 'new') + bounded('feather', 'تنعيم', 0, 250, 0);
       }
       html += btn('selAll', 'الكل') + btn('selNone', 'إلغاء التحديد') + btn('selInv', 'عكس');
+      html += btn('selReselect', 'إعادة التحديد') + bounded('growPx', 'بكسل', 1, 100, 2) +
+        btn('selExpand', 'توسيع') + btn('selContract', 'تقليص') + btn('selSmooth', 'تنعيم') + btn('selSave', 'حفظ التحديد');
+      const saved = Object.keys(state.selections || {});
+      if (saved.length) {
+        html += `<select id="selSaved">${saved.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select>`;
+        html += btn('selLoad', 'تحميل') + btn('selDelete', 'حذف');
+      }
       break;
     }
     case 'eyedrop':
@@ -368,7 +375,7 @@ function buildOpts() {
 }
 
 function bindOpts() {
-  ['brushSize', 'brushAlpha', 'tolerance', 'textSize', 'feather'].forEach(id => {
+  ['brushSize', 'brushAlpha', 'tolerance', 'textSize', 'feather', 'growPx'].forEach(id => {
     const e = $(id); if (!e) return;
     e.oninput = () => { OPT[id] = parseFloat(e.value) || OPT[id]; };
   });
@@ -383,6 +390,13 @@ function bindOpts() {
   on('selAll', selectAll);
   on('selNone', clearSelection);
   on('selInv', invertSelection);
+  on('selReselect', reselect);
+  on('selExpand', () => growSel(true));
+  on('selContract', () => growSel(false));
+  on('selSmooth', smoothSel);
+  on('selSave', saveSelection);
+  on('selLoad', loadSelection);
+  on('selDelete', deleteSelection);
   on('polyDone', polyFinish);
   on('polyCancel', polyCancel);
   ['selShape', 'selMode', 'lassoType', 'wandMode', 'cropRatio'].forEach(id => {

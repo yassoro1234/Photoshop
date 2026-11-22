@@ -51,7 +51,8 @@ function serializeProject() {
       meta: metaOf(l),
       png: l.canvas ? l.canvas.toDataURL('image/png') : null,
       mask: l.mask ? l.mask.toDataURL('image/png') : null
-    }))
+    })),
+    selections: Object.fromEntries(Object.entries(state.selections || {}).map(([k, c]) => [k, c.toDataURL('image/png')]))
   };
 }
 
@@ -75,7 +76,14 @@ async function loadProjectData(obj, opts = {}) {
     }
     layers.push(l);
   }
+  const selections = {};
+  for (const [k, u] of Object.entries(obj.selections || {})) {
+    const c = mkCanvas(obj.W, obj.H);
+    c.getContext('2d').drawImage(await loadImage(u), 0, 0);
+    selections[k] = c;
+  }
   state.undo = []; state.redo = [];
+  state.selections = selections; state.lastSel = null;
   state.sel = null; state.crop = null; state.preview = null; state.pen = null; state.ft = null;
   state.W = obj.W; state.H = obj.H;
   state.layers = layers;

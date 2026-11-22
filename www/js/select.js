@@ -228,3 +228,87 @@ defTool('crop', {
     drawOverlay();
   }
 });
+
+/* ---------- reselect, expand / contract, smooth, saved selections ---------- */
+function reselect() {
+  const s = state.lastSel;
+  if (!s) return toast(t('لا يوجد تحديد سابق'));
+  setSelection(s.mask, s.poly, s.box);
+}
+/* one horizontal or vertical pass of a square max (dilate) or min (erode) filter, using prefix sums */
+function slidePass(src, w, h, r, dilate, horiz) {
+  const dst = new Uint8Array(w * h);
+  const lines = horiz ? h : w, len = horiz ? w : h, win = 2 * r + 1;
+  const pre = new Int32Array(len + 1);
+  for (let l = 0; l < lines; l++) {
+    const at = i => horiz ? l * w + i : i * w + l;
+    pre[0] = 0;
+    for (let i = 0; i < len; i++) pre[i + 1] = pre[i] + src[at(i)];
+    for (let i = 0; i < len; i++) {
+      const lo = Math.max(0, i - r), hi = Math.min(len - 1, i + r), cnt = pre[hi + 1] - pre[lo];
+      dst[at(i)] = dilate ? (cnt > 0 ? 1 : 0) : (i - r >= 0 && i + r < len && cnt === win ? 1 : 0);
+    }
+  }
+  return dst;
+}
+/* expands (dilate) or contracts (erode) a mask by r pixels */
+function morphMask(mask, r, dilate) {
+  const w = mask.width, h = mask.height;
+  const a = mask.getContext('2d').getImageData(0, 0, w, h).data;
+  let cur = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) cur[i] = a[i * 4 + 3] > 127 ? 1 : 0;
+  cur = slidePass(cur, w, h, r, dilate, true);
+  cur = slidePass(cur, w, h, r, dilate, false);
+  const out = mkCanvas(w, h), x = out.getContext('2d');
+  const img = x.createImageData(w, h), d = img.data;
+  for (let i = 0; i < w * h; i++) if (cur[i]) d[i * 4 + 3] = 255;
+  x.putImageData(img, 0, 0);
+  return out;
+}
+/* removes jagged edges: blur, then a hard threshold at 50% */
+function smoothMask(mask, r) {
+  const w = mask.width, h = mask.height;
+  const m = mkCanvas(w, h), x = m.getContext('2d');
+  x.filter = `blur(${r}px)`;
+  x.drawImage(mask, 0, 0);
+  x.filter = 'none';
+  const img = x.getImageData(0, 0, w, h), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = d[i + 3] >= 128 ? 255 : 0; }
+  x.putImageData(img, 0, 0);
+  return m;
+}
+function applyMaskOp(m) {
+  const box = maskBox(m);
+  if (!box) return clearSelection();
+  setSelection(m, null, box);
+}
+function growSel(dilate) {
+  if (!state.sel) return toast(t('لا يوجد تحديد'));
+  applyMaskOp(morphMask(state.sel.mask, Math.max(1, Math.round(optNum('growPx', 2))), dilate));
+}
+function smoothSel() {
+  if (!state.sel) return toast(t('لا يوجد تحديد'));
+  applyMaskOp(smoothMask(state.sel.mask, Math.max(1, optNum('growPx', 2))));
+}
+/* saved selections live in state.selections (name -> mask canvas) and are written into the project file */
+function saveSelection() {
+  if (!state.sel) return toast(t('لا يوجد تحديد'));
+  let name = t('تحديد') + ' ' + (Object.keys(state.selections).length + 1);
+  while (state.selections[name]) name += '+';
+  state.selections[name] = cloneC(state.sel.mask);
+  state.dirty = true;
+  buildOpts();
+  toast(t('تم حفظ التحديد'));
+}
+function loadSelection() {
+  const e = $('selSaved'), c = e && state.selections[e.value];
+  if (!c) return;
+  applyMaskOp(cloneC(c));
+}
+function deleteSelection() {
+  const e = $('selSaved');
+  if (!e || !state.selections[e.value]) return;
+  delete state.selections[e.value];
+  state.dirty = true;
+  buildOpts();
+}
