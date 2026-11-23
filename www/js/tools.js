@@ -204,20 +204,6 @@ defTool('move', {
   }
 });
 
-defTool('quick', {
-  cursor: 'crosshair',
-  down(p) {
-    const t = strokeTarget();
-    if (!t) return;
-    const reg = floodRegion(t.canvas, p.x, p.y, optNum('tolerance', 32));
-    if (!reg) return;
-    const m = mkCanvas(state.W, state.H), x = m.getContext('2d');
-    const img = x.createImageData(state.W, state.H), dd = img.data;
-    for (let i = 0; i < reg.inc.length; i++) if (reg.inc[i]) dd[i * 4 + 3] = 255;
-    x.putImageData(img, 0, 0);
-    setSelection(m, null, reg.box);
-  }
-});
 
 defTool('brush', makePaintTool(false));
 defTool('eraser', makePaintTool(true));

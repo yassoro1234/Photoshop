@@ -166,10 +166,42 @@ function polyDown(p) {
   state.preview = { kind: 'poly', pts: polyPts.slice() };
   drawOverlay();
 }
+/* ---------- magnetic lasso: each point snaps to the strongest edge nearby ---------- */
+function gradientMap(canvas) {
+  const w = canvas.width, h = canvas.height;
+  const d = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+  const L = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) L[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+  const g = new Float32Array(w * h);
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x;
+    const gx = L[i + 1] - L[i - 1], gy = L[i + w] - L[i - w];
+    g[i] = Math.sqrt(gx * gx + gy * gy);
+  }
+  return { g, w, h };
+}
+function magSnap(map, p) {
+  const R = Math.max(3, Math.round(8 / state.zoom));
+  const cx = Math.round(p.x), cy = Math.round(p.y);
+  let best = -1, bx = cx, by = cy;
+  for (let y = cy - R; y <= cy + R; y++) for (let x = cx - R; x <= cx + R; x++) {
+    if (x < 1 || y < 1 || x >= map.w - 1 || y >= map.h - 1) continue;
+    const v = map.g[y * map.w + x] - 0.02 * ((x - cx) ** 2 + (y - cy) ** 2) / (R * R);   // slight pull toward the pointer
+    if (v > best) { best = v; bx = x; by = y; }
+  }
+  return { x: bx, y: by };
+}
+
 defTool('lasso', {
   cursor: 'crosshair',
   down(p, e, d) {
     if ((OPT.lassoType || 'free') === 'poly') { d.poly = true; polyDown(p); return; }
+    if (OPT.lassoType === 'magnetic') {
+      const t = strokeTarget();
+      d.mag = t ? gradientMap(t.canvas) : null;
+      d.pts = [d.mag ? magSnap(d.mag, p) : p];
+      return;
+    }
     d.pts = [p];
   },
   move(p, e, d) {
@@ -177,7 +209,10 @@ defTool('lasso', {
       if (polyPts) { state.preview = { kind: 'poly', pts: polyPts.concat([p]) }; drawOverlay(); }
       return;
     }
-    d.pts.push(p);
+    const q = d.mag ? magSnap(d.mag, p) : p;
+    const last = d.pts[d.pts.length - 1];
+    if (Math.hypot(q.x - last.x, q.y - last.y) < 2) return;
+    d.pts.push(q);
     state.preview = { kind: 'poly', pts: d.pts };
     drawOverlay();
   },
@@ -188,6 +223,74 @@ defTool('lasso', {
     commitSelection(maskFromPoints(d.pts));
   },
   cancel(d) { if (!d.poly) { state.preview = null; drawOverlay(); } }
+});
+
+/* ---------- quick selection: paint over an area, growing by colour similarity ---------- */
+/* contiguous pixels close in colour to (sx, sy), flooding over a pixel buffer read once per stroke */
+function floodFromData(data, W, H, sx, sy, tol) {
+  const k0 = (sy * W + sx) * 4;
+  const r0 = data[k0], g0 = data[k0 + 1], b0 = data[k0 + 2], a0 = data[k0 + 3];
+  const seen = new Uint8Array(W * H), inc = new Uint8Array(W * H);
+  const stack = [sx, sy];
+  while (stack.length) {
+    const y = stack.pop(), x = stack.pop();
+    const i = y * W + x;
+    if (seen[i]) continue;
+    seen[i] = 1;
+    const k = i * 4;
+    if (Math.abs(data[k] - r0) > tol || Math.abs(data[k + 1] - g0) > tol || Math.abs(data[k + 2] - b0) > tol || Math.abs(data[k + 3] - a0) > tol) continue;
+    inc[i] = 1;
+    if (x > 0) stack.push(x - 1, y);
+    if (x < W - 1) stack.push(x + 1, y);
+    if (y > 0) stack.push(x, y - 1);
+    if (y < H - 1) stack.push(x, y + 1);
+  }
+  return inc;
+}
+function quickDab(p, d) {
+  const W = d.W, H = d.H;
+  const sx = Math.round(p.x), sy = Math.round(p.y);
+  if (sx < 0 || sy < 0 || sx >= W || sy >= H) return false;
+  if (d.acc[sy * W + sx]) return false;                 // already covered: no need to flood again
+  const inc = floodFromData(d.data, W, H, sx, sy, optNum('tolerance', 32));
+  const r = Math.max(1, optNum('brushSize', 12) / 2), r2 = r * r;
+  const x0 = Math.max(0, Math.floor(p.x - r)), x1 = Math.min(W - 1, Math.ceil(p.x + r));
+  const y0 = Math.max(0, Math.floor(p.y - r)), y1 = Math.min(H - 1, Math.ceil(p.y + r));
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const i = y * W + x;
+    if (inc[i] && (x - p.x) ** 2 + (y - p.y) ** 2 <= r2) d.acc[i] = 1;
+  }
+  return true;
+}
+function quickStart(d) {
+  const t = strokeTarget(); if (!t) return false;
+  d.W = t.canvas.width; d.H = t.canvas.height;
+  d.data = t.canvas.getContext('2d').getImageData(0, 0, d.W, d.H).data;
+  d.acc = new Uint8Array(d.W * d.H);
+  return true;
+}
+function quickMaskFromAcc(acc, W, H) {
+  const m = mkCanvas(W, H), x = m.getContext('2d');
+  const img = x.createImageData(W, H), dd = img.data;
+  for (let i = 0; i < acc.length; i++) if (acc[i]) dd[i * 4 + 3] = 255;
+  x.putImageData(img, 0, 0);
+  return m;
+}
+defTool('quick', {
+  cursor: 'crosshair',
+  down(p, e, d) { d.painted = quickStart(d) && quickDab(p, d); d.last = p; drawOverlay(); },
+  move(p, e, d) {
+    if (!d.acc) return;
+    const a = d.last, n = Math.max(1, Math.ceil(Math.hypot(p.x - a.x, p.y - a.y) / Math.max(1, optNum('brushSize', 12) / 4)));
+    for (let k = 1; k <= n; k++) if (quickDab({ x: a.x + (p.x - a.x) * k / n, y: a.y + (p.y - a.y) * k / n }, d)) d.painted = true;
+    d.last = p;
+  },
+  up(p, e, d) {
+    if (!d.acc || !d.painted) return;
+    commitSelection(quickMaskFromAcc(d.acc, d.W, d.H));
+    d.acc = null; d.data = null;
+  },
+  cancel(d) { d.acc = null; d.data = null; }
 });
 
 /* ---------- magic wand ---------- */

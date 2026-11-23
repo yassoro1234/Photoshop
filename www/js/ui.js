@@ -342,10 +342,15 @@ function buildOpts() {
       html += btn('cloneArm', state.cloneArm ? 'انقر على المصدر…' : 'تحديد المصدر');
       html += hint(state.cloneSrc ? 'المصدر محدد' : 'لم يُحدد المصدر');
       break;
-    case 'quick':
-      html += bounded('tolerance', 'التسامح', 0, 255, 32);
+    case 'quick': {
+      const modes = [['new', 'جديد'], ['add', 'إضافة'], ['subtract', 'طرح'], ['intersect', 'تقاطع']];
+      html += bounded('brushSize', 'الحجم', 1, 400, 12) + bounded('tolerance', 'التسامح', 0, 255, 32);
+      html += `<span>${esc(t('الوضع'))}</span> <select id="selMode">${modes.map(([v, lab]) =>
+        `<option value="${v}"${(OPT.selMode ?? 'new') === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
+      html += hint('ارسم فوق المنطقة: تُضاف البكسلات المتشابهة في اللون');
       html += btn('selAll', 'الكل') + btn('selNone', 'إلغاء التحديد') + btn('selInv', 'عكس');
       break;
+    }
     case 'bucket':
       html += bounded('tolerance', 'التسامح', 0, 255, 32);
       break;
@@ -389,7 +394,7 @@ function buildOpts() {
         html += pick('selShape', 'الشكل', [['rect', 'مستطيل'], ['ellipse', 'إهليلج'], ['row', 'صف بكسل'], ['column', 'عمود بكسل']], 'rect');
         html += pick('selMode', 'الوضع', modes, 'new') + bounded('feather', 'تنعيم', 0, 250, 0);
       } else if (state.tool === 'lasso') {
-        html += pick('lassoType', 'النوع', [['free', 'حر'], ['poly', 'متعدد الأضلاع']], 'free');
+        html += pick('lassoType', 'النوع', [['free', 'حر'], ['poly', 'متعدد الأضلاع'], ['magnetic', 'مغناطيسي']], 'free');
         html += pick('selMode', 'الوضع', modes, 'new') + bounded('feather', 'تنعيم', 0, 250, 0);
         if (polyActive()) html += btn('polyDone', 'إنهاء المضلع', 'pri') + btn('polyCancel', 'إلغاء المضلع') + hint('انقر لإضافة نقاط، وانقر البداية أو انقر مرتين للإغلاق');
       } else {
