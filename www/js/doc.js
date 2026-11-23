@@ -168,6 +168,15 @@ function drawOverlay() {
   x.clearRect(0, 0, ov.width, ov.height);
   const z = state.zoom;
   x.lineWidth = 1 / z;
+  if (QMASK && state.sel) {
+    // quick mask: the selected area is tinted red, the rest is clear
+    const tint = mkCanvas(state.W, state.H), tx = tint.getContext('2d');
+    tx.fillStyle = 'rgba(255,40,40,0.5)';
+    tx.fillRect(0, 0, state.W, state.H);
+    tx.globalCompositeOperation = 'destination-in';
+    tx.drawImage(state.sel.mask, 0, 0);
+    x.drawImage(tint, 0, 0);
+  }
 
   const dashed = () => { x.setLineDash([5 / z, 4 / z]); };
 

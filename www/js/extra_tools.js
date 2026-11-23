@@ -157,7 +157,35 @@ defTool('patch', {
   }
 });
 
+/* ---------- history brush: paints the pixels of an earlier document state ---------- */
+function historySource(l) {
+  const i = clamp(+(OPT.hbIndex ?? 0), 0, state.undo.length - 1);
+  const snap = state.undo[i];
+  if (!snap) return null;
+  const e = snap.layers.find(x => x.meta.id === l.id);
+  return e && e.canvas ? e.canvas : null;
+}
+function historySeg(a, b) {
+  const t = strokeTarget(), l = curRaster();
+  if (!t || !l || l.locked) return false;
+  const src = historySource(l);
+  if (!src) return toast(t('لا توجد حالة سابقة لهذه الطبقة')) || false;
+  const sc = strokeScratch(), sx = sc.getContext('2d');
+  sx.setTransform(1, 0, 0, 1, 0, 0);
+  sx.globalCompositeOperation = 'source-over'; sx.globalAlpha = 1;
+  sx.clearRect(0, 0, sc.width, sc.height);
+  sx.lineCap = 'round'; sx.lineJoin = 'round';
+  sx.lineWidth = optNum('brushSize', 12); sx.strokeStyle = '#000';
+  sx.beginPath(); sx.moveTo(a.x, a.y); sx.lineTo(b.x, b.y); sx.stroke();
+  sx.globalCompositeOperation = 'source-in';   // keep the source pixels only where the stroke is
+  sx.drawImage(src, 0, 0);
+  sx.globalCompositeOperation = 'source-over';
+  return drawOntoLayer(sc, clamp(optNum('brushAlpha', 100), 1, 100) / 100) ? true : false;
+}
+defTool('history', makeSegTool(historySeg, 'crosshair'));
+
 /* ---------- tool registration ---------- */
+
 defTool('pencil', makeSegTool(pencilSeg, 'crosshair'));
 defTool('colorrep', colorRepTool);
 defTool('heal', healTool);

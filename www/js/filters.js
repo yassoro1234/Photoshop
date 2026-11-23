@@ -248,6 +248,25 @@ function extraFilterDefs() {
         return o;
       })
     },
+    lensBlur: {
+      label: t('تمويه العدسة (تقريبي)'),
+      controls: [
+        { k: 'r', label: t('نصف القطر'), min: 1, max: 30, step: 1, val: 6 },
+        { k: 'hl', label: t('تعزيز الإضاءة %'), min: 0, max: 100, step: 1, val: 40 }
+      ],
+      make: dataFilter((d, w, h, p) => {
+        const r = Math.max(1, p.r | 0);
+        let o = boxBlurData(d, w, h, r);
+        o = boxBlurData(o, w, h, r);
+        o = boxBlurData(o, w, h, r);
+        const boost = 1 + p.hl / 100;
+        for (let i = 0; i < o.length; i += 4) {
+          const L = 0.299 * o[i] + 0.587 * o[i + 1] + 0.114 * o[i + 2];
+          if (L > 200) { const k = 1 + (boost - 1) * (L - 200) / 55; o[i] *= k; o[i + 1] *= k; o[i + 2] *= k; }
+        }
+        return o;
+      })
+    },
     rangeBalance: {
       label: t('توازن الألوان بالنطاق'),
       controls: [

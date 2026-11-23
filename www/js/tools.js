@@ -20,6 +20,8 @@ const TOOL_LIST = [
   { id: 'colorrep', name: 'Color Replacement', icon: '⇄', key: 'X' },
   { id: 'heal',    name: 'Spot Healing',      icon: '✚', img: '26_healing.png', key: 'J' },
   { id: 'patch',   name: 'Patch',             icon: '⊡', key: 'Q' },
+  { id: 'history', name: 'History Brush',     icon: '↺', key: 'Y' },
+  { id: 'qmask',   name: 'Quick Mask',        icon: '◑' },
   { id: 'clone',   name: 'Clone Stamp',       icon: '⎘', img: '11_clone_stamp.png', key: 'S' },
   { id: 'gradient',name: 'Gradient',          icon: '◧', img: '12_gradient.png', key: 'G' },
   { id: 'bucket',  name: 'Paint Bucket',      icon: '◍', img: '13_paint_bucket.png', key: 'K' },

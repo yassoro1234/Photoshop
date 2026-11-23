@@ -273,7 +273,58 @@ defTool('lasso', {
   cancel(d) { if (!d.poly) { state.preview = null; drawOverlay(); } }
 });
 
-/* ---------- quick selection: paint over an area, growing by colour similarity ---------- */
+/* selects the opaque pixels of the active layer (for a text layer, the text itself) */
+function selectFromAlpha() {
+  const l = cur();
+  if (!isRaster(l) || !l.canvas) return toast(t('اختر طبقة بكسل أو نص أولاً'));
+  const w = state.W, h = state.H;
+  const d = l.canvas.getContext('2d').getImageData(0, 0, w, h).data;
+  const m = mkCanvas(w, h), x = m.getContext('2d');
+  const img = x.createImageData(w, h), o = img.data;
+  for (let i = 3; i < d.length; i += 4) o[i] = d[i];   // black with the layer's alpha, as a selection mask
+  x.putImageData(img, 0, 0);
+  const box = maskBox(m);
+  if (!box) return toast(t('الطبقة شفافة بالكامل'));
+  setSelection(m, null, box);
+}
+
+/* ---------- quick mask: paint the selection directly; the red overlay shows what is selected ---------- */
+let QMASK = false;
+function toggleQuickMask() {
+  if (QMASK) {
+    QMASK = false;
+    if (state.sel) {
+      const box = maskBox(state.sel.mask);
+      if (box) setSelection(state.sel.mask, null, box); else clearSelection();
+    }
+  } else {
+    QMASK = true;
+    if (!state.sel) setSelection(mkCanvas(state.W, state.H), null, { x: 0, y: 0, w: state.W, h: state.H });
+  }
+  buildOpts(); render();
+}
+function qmaskSeg(a, b, d) {
+  if (!state.sel) return false;
+  const m = state.sel.mask, mx = m.getContext('2d');
+  mx.save();
+  mx.lineCap = 'round'; mx.lineJoin = 'round';
+  mx.lineWidth = optNum('brushSize', 12);
+  mx.globalAlpha = clamp(optNum('brushAlpha', 100), 1, 100) / 100;
+  mx.globalCompositeOperation = d.erase ? 'destination-out' : 'source-over';
+  mx.strokeStyle = '#000';
+  mx.beginPath(); mx.moveTo(a.x, a.y); mx.lineTo(b.x, b.y); mx.stroke();
+  mx.restore();
+  state.sel.edge = null;
+  return true;
+}
+defTool('qmask', {
+  cursor: 'crosshair',
+  down(p, e, d) { d.erase = OPT.qmode === 'remove'; d.painted = qmaskSeg(p, p, d); d.last = p; render(); },
+  move(p, e, d) { if (qmaskSeg(d.last, p, d)) d.painted = true; d.last = p; render(); },
+  up(p, e, d) { if (d.painted) drawOverlay(); }
+});
+
+/* quick selection: paint over an area, growing by colour similarity ---------- */
 /* contiguous pixels close in colour to (sx, sy), flooding over a pixel buffer read once per stroke */
 function floodFromData(data, W, H, sx, sy, tol) {
   const k0 = (sy * W + sx) * 4;

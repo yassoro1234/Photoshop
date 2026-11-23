@@ -183,6 +183,7 @@ function menuDefs() {
       { label: 'طمس دوراني…', fn: () => runFilter('radialBlur') },
       { label: 'تحديد حاد (قناع غير حاد)…', fn: () => runFilter('unsharp') },
       { label: 'تقليل الضوضاء…', fn: () => runFilter('reduceNoise') },
+      { label: 'تمويه العدسة…', fn: () => runFilter('lensBlur') },
       { label: 'تمرير عالٍ…', fn: () => runFilter('highPass') },
       { label: 'إزاحة…', fn: () => runFilter('offset') },
       { label: 'موجة…', fn: () => runFilter('wave') },
@@ -301,6 +302,23 @@ function buildOpts() {
   }
 
   switch (state.tool) {
+    case 'history': {
+      html += bounded('brushSize', 'الحجم', 1, 400, 12);
+      html += bounded('brushAlpha', 'الشفافية %', 1, 100, 100);
+      const hist = state.undo.map((_, i) => [String(i), i === 0 ? 'الحالة الأصلية' : 'خطوة ' + i]);
+      html += `<span>${esc(t('المصدر'))}</span> <select id="hbIndex">${hist.map(([v, lab]) =>
+        `<option value="${v}"${String(OPT.hbIndex ?? 0) === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
+      html += hint('يرسم بكسلات حالة سابقة من المستند فوق الحالي');
+      break;
+    }
+    case 'qmask': {
+      html += bounded('brushSize', 'الحجم', 1, 400, 12);
+      html += bounded('brushAlpha', 'الشفافية %', 1, 100, 100);
+      html += `<span>${esc(t('الوضع'))}</span> <select id="qmode">${[['add', 'إضافة للتحديد'], ['remove', 'إزالة من التحديد']].map(([v, lab]) =>
+        `<option value="${v}"${(OPT.qmode ?? 'add') === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
+      html += btn('qmaskToggle', QMASK ? 'إيقاف القناع السريع' : 'تشغيل القناع السريع');
+      break;
+    }
     case 'pencil':
       html += bounded('brushSize', 'الحجم', 1, 400, 12);
       html += bounded('brushAlpha', 'الشفافية %', 1, 100, 100);
@@ -349,6 +367,7 @@ function buildOpts() {
         `<option value="${v}"${(OPT.selMode ?? 'new') === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
       html += hint('ارسم فوق المنطقة: تُضاف البكسلات المتشابهة في اللون');
       html += btn('selAll', 'الكل') + btn('selNone', 'إلغاء التحديد') + btn('selInv', 'عكس') + btn('refineEdge', 'تحسين الحواف');
+      html += btn('selFromAlpha', 'تحديد من شفافية الطبقة');
       break;
     }
     case 'bucket':
@@ -449,6 +468,8 @@ function bindOpts() {
   on('cloneArm', () => { state.cloneArm = !state.cloneArm; buildOpts(); toast(state.cloneArm ? t('انقر على نقطة المصدر') : t('أُلغي')); });
   on('penDone', commitPen);
   on('refineEdge', refineEdgeDialog);
+  on('selFromAlpha', selectFromAlpha);
+  on('qmaskToggle', toggleQuickMask);
   on('penClose', () => { if (state.pen && state.pen.pts.length > 2) { state.pen.closed = true; commitPen(); } });
   on('penCancel', cancelPen);
   on('cropApply', applyCrop);
@@ -467,7 +488,7 @@ function bindOpts() {
   on('polyDone', polyFinish);
   on('polyCancel', polyCancel);
   const sc = $('shapeColor'); if (sc) sc.oninput = () => { OPT.shapeColor = sc.value; };
-  ['selShape', 'selMode', 'lassoType', 'wandMode', 'cropRatio', 'shapeKind', 'retRange', 'retSponge', 'penMode'].forEach(id => {
+  ['selShape', 'selMode', 'lassoType', 'wandMode', 'cropRatio', 'shapeKind', 'retRange', 'retSponge', 'penMode', 'hbIndex', 'qmode'].forEach(id => {
     const e = $(id); if (!e) return;
     e.onchange = () => { OPT[id] = e.value; if (id === 'lassoType') buildOpts(); };
   });
