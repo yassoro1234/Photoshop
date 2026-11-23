@@ -230,6 +230,67 @@ function extraFilterDefs() {
         return o;
       })
     },
+    curves: {
+      label: t('منحنى الألوان'),
+      controls: [0, 1, 2, 3, 4].map(i => ({ k: 'p' + i, label: [t('الظلال'), t('ربع الظل'), t('المتوسطات'), t('ربع الضوء'), t('الضوء')][i], min: 0, max: 255, step: 1, val: [0, 64, 128, 192, 255][i] })),
+      make: dataFilter((d, w, h, p) => {
+        // five control points at inputs 0, 64, 128, 192, 255; linear between them
+        const ys = [p.p0, p.p1, p.p2, p.p3, p.p4], xs = [0, 64, 128, 192, 255];
+        const lut = new Uint8ClampedArray(256);
+        for (let v = 0; v < 256; v++) {
+          let s = 0;
+          while (s < 3 && v > xs[s + 1]) s++;
+          const t = (v - xs[s]) / (xs[s + 1] - xs[s]);
+          lut[v] = clamp(lerpN(ys[s], ys[s + 1], t), 0, 255);
+        }
+        const o = new Uint8ClampedArray(d.length);
+        for (let i = 0; i < d.length; i += 4) { o[i] = lut[d[i]]; o[i + 1] = lut[d[i + 1]]; o[i + 2] = lut[d[i + 2]]; o[i + 3] = d[i + 3]; }
+        return o;
+      })
+    },
+    rangeBalance: {
+      label: t('توازن الألوان بالنطاق'),
+      controls: [
+        { k: 'sr', label: t('ظلال: أحمر/سماوي'), min: -100, max: 100, step: 1, val: 0 },
+        { k: 'sg', label: t('ظلال: أخضر/أرجواني'), min: -100, max: 100, step: 1, val: 0 },
+        { k: 'sb', label: t('ظلال: أزرق/أصفر'), min: -100, max: 100, step: 1, val: 0 },
+        { k: 'mr', label: t('متوسطات: أحمر/سماوي'), min: -100, max: 100, step: 1, val: 0 },
+        { k: 'mg', label: t('متوسطات: أخضر/أرجواني'), min: -100, max: 100, step: 1, val: 0 },
+        { k: 'mb', label: t('متوسطات: أزرق/أصفر'), min: -100, max: 100, step: 1, val: 0 },
+        { k: 'hr', label: t('ضوء: أحمر/سماوي'), min: -100, max: 100, step: 1, val: 0 },
+        { k: 'hg', label: t('ضوء: أخضر/أرجواني'), min: -100, max: 100, step: 1, val: 0 },
+        { k: 'hb', label: t('ضوء: أزرق/أصفر'), min: -100, max: 100, step: 1, val: 0 }
+      ],
+      make: dataFilter((d, w, h, p) => {
+        const o = new Uint8ClampedArray(d.length), K = 0.8;
+        for (let i = 0; i < d.length; i += 4) {
+          const r = d[i], g = d[i + 1], b = d[i + 2];
+          const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+          const ws = 1 - L, wh = L, wm = 1 - Math.abs(2 * L - 1);
+          o[i] = r + K * (ws * p.sr + wm * p.mr + wh * p.hr);
+          o[i + 1] = g + K * (ws * p.sg + wm * p.mg + wh * p.hg);
+          o[i + 2] = b + K * (ws * p.sb + wm * p.mb + wh * p.hb);
+          o[i + 3] = d[i + 3];
+        }
+        return o;
+      })
+    },
+    solidFill: {
+      label: t('تعبئة بلون'),
+      controls: [
+        { k: 'r', label: t('أحمر'), min: 0, max: 255, step: 1, val: 255 },
+        { k: 'g', label: t('أخضر'), min: 0, max: 255, step: 1, val: 255 },
+        { k: 'b', label: t('أزرق'), min: 0, max: 255, step: 1, val: 255 },
+        { k: 'a', label: t('التغطية %'), min: 0, max: 100, step: 1, val: 100 }
+      ],
+      make: p => src => {
+        const out = cloneC(src), x = out.getContext('2d');
+        x.globalAlpha = p.a / 100;
+        x.fillStyle = `rgb(${p.r | 0},${p.g | 0},${p.b | 0})`;
+        x.fillRect(0, 0, out.width, out.height);
+        return out;
+      }
+    },
     offset: {
       label: t('إزاحة'),
       controls: [

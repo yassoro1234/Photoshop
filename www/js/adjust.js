@@ -451,7 +451,7 @@ function openCurves() {
 
 
 /* ---------- adjustment layers: non-destructive, the filter is applied to everything below ---------- */
-const ADJ_KEYS = ['brightness', 'exposure', 'hue', 'temperature', 'levels', 'grayscale', 'invert'];
+const ADJ_KEYS = ['brightness', 'exposure', 'hue', 'temperature', 'levels', 'curves', 'rangeBalance', 'solidFill', 'grayscale', 'invert'];
 /* filters everything drawn so far (x holds the stack below this layer), mixed by opacity and mask */
 function applyAdjustLayer(x, l) {
   const F = filterDefs()[l.adj && l.adj.key];
