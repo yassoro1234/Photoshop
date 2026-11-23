@@ -203,6 +203,37 @@ async function exportAnimGif() {
   }
 }
 
+/* exports all frames as one PNG grid (sprite sheet) plus a JSON file with each frame's rectangle */
+async function exportAnimSheet() {
+  if (!ANIM.open || !ANIM.layers.length) return toast(t('لا توجد طبقات للتصدير'));
+  try {
+    toast(t('جاري تصدير صورة الأوراق…'));
+    const n = ANIM.frames, cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
+    const s = Math.min(1, 2048 / (cols * ANIM.W));          // keep the sheet at most 2048 px wide
+    const cw = Math.max(1, Math.round(ANIM.W * s)), ch = Math.max(1, Math.round(ANIM.H * s));
+    const sheet = document.createElement('canvas');
+    sheet.width = cols * cw; sheet.height = rows * ch;
+    const sc = sheet.getContext('2d');
+    const meta = { format: 'photostudio-sheet', cols, rows, cellW: cw, cellH: ch, fps: ANIM.fps, frames: [] };
+    const tmp = document.createElement('canvas'); tmp.width = cw; tmp.height = ch;
+    const tc = tmp.getContext('2d');
+    for (let f = 0; f < n; f++) {
+      tc.setTransform(s, 0, 0, s, 0, 0);
+      drawScene(tc, f);
+      const x = (f % cols) * cw, y = Math.floor(f / cols) * ch;
+      sc.drawImage(tmp, x, y);
+      meta.frames.push({ f, x, y, w: cw, h: ch });
+      if (f % 4 === 3) await new Promise(r => setTimeout(r, 0));
+    }
+    const png = await new Promise(r => sheet.toBlob(r, 'image/png'));
+    const name = ANIM.name || 'animation';
+    await saveBlob(png, `${name}-sheet.png`);
+    await saveBlob(new Blob([JSON.stringify(meta, null, 2)], { type: 'application/json' }), `${name}-sheet.json`);
+  } catch (e) {
+    toast(t('فشل التصدير'));
+  }
+}
+
 /* onion skin: the neighbouring frames drawn as tinted ghosts under the current frame (earlier red, later blue) */
 let ONION_CV = null;
 function drawOnion(c, frame) {
@@ -1534,6 +1565,7 @@ function animMenuDefs() {
       { label: 'مشروع جديد…', fn: () => openAnimNewDialog() },
       { label: 'حفظ المشروع', fn: () => animSave(true, false) },
       { label: 'تصدير GIF', fn: exportAnimGif },
+      { label: 'تصدير صورة الأوراق', fn: exportAnimSheet },
       { label: 'إعادة التسمية', fn: () => renameAnim() }
     ],
     'تحرير': [
