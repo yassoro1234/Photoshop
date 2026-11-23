@@ -16,6 +16,7 @@ const ANIM = {
   zoom: 1, panX: 0, panY: 0, k: 1,
   tool: 'select', graphOpen: false, graphProp: 'x',
   onion: { on: false, before: 2, after: 1, opacity: 0.4 },   // onion skin: view only, not saved
+  cam: { kfs: [] },               // camera keys: { f, x, y, z, ease }; x/y move the view centre, z is zoom
   undo: [], redo: []
 };
 const ANIM_ICON = {"select": "01_move.png", "hand": "22_hand.png", "zoom": "23_zoom.png", "text": "17_text.png", "rect": "18_rectangle.png", "ellipse": "19_ellipse.png", "brush": "08_brush.png", "eraser": "10_eraser.png", "pen": "14_pen.png", "bucket": "13_paint_bucket.png", "eyedrop": "07_eyedropper.png"};   // tool id -> icon file in www/icons
@@ -173,10 +174,62 @@ function drawLayer(c, l, frame) {
   }
   c.restore();
 }
+/* camera: the view centre moves to (W/2 + x, H/2 + y) and the view is zoomed by z, interpolated between keys */
+function camAt(frame) {
+  const k = (ANIM.cam && ANIM.cam.kfs) || [];
+  if (!k.length) return { x: 0, y: 0, z: 1 };
+  if (frame <= k[0].f) return { x: k[0].x, y: k[0].y, z: k[0].z };
+  const last = k[k.length - 1];
+  if (frame >= last.f) return { x: last.x, y: last.y, z: last.z };
+  let i = 0;
+  while (i < k.length - 2 && k[i + 1].f <= frame) i++;
+  const a = k[i], b = k[i + 1];
+  const e = easeValue(a, (frame - a.f) / (b.f - a.f));
+  return { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, z: a.z + (b.z - a.z) * e };
+}
+function applyCam(c, frame) {
+  const v = camAt(frame);
+  c.translate(ANIM.W / 2, ANIM.H / 2);
+  c.scale(v.z, v.z);
+  c.translate(-(ANIM.W / 2 + v.x), -(ANIM.H / 2 + v.y));
+}
 function drawScene(c, frame) {
+  c.save();
+  applyCam(c, frame);
   c.fillStyle = ANIM.bg || '#ffffff';
   c.fillRect(0, 0, ANIM.W, ANIM.H);
   ANIM.layers.forEach(l => drawLayer(c, l, frame));
+  c.restore();
+}
+/* camera key at the playhead: sets x, y and zoom for this frame */
+function camKeyHere() {
+  const v = camAt(ANIM.frame), P = { x: v.x, y: v.y, z: v.z * 100 };
+  const body = el('div', 'ctrls');
+  [
+    { k: 'x', label: t('إزاحة أفقية'), min: -ANIM.W * 2, max: ANIM.W * 2, step: 1, val: P.x },
+    { k: 'y', label: t('إزاحة عمودية'), min: -ANIM.H * 2, max: ANIM.H * 2, step: 1, val: P.y },
+    { k: 'z', label: t('التكبير %'), min: 10, max: 800, step: 1, val: P.z }
+  ].forEach(c => body.appendChild(controlRow(c, val => { P[c.k] = val; })));
+  openModal({
+    title: t('مفتاح الكاميرا'), body,
+    buttons: [
+      { label: t('إلغاء'), onClick: closeModal },
+      { label: t('تطبيق'), primary: true, onClick: () => {
+        pushUndo();
+        const kfs = (ANIM.cam.kfs || []).filter(k => k.f !== ANIM.frame);
+        kfs.push({ f: ANIM.frame, x: P.x, y: P.y, z: P.z / 100, ease: 'inout' });
+        kfs.sort((a, b) => a.f - b.f);
+        ANIM.cam = { kfs };
+        closeModal(); renderAll();
+      } }
+    ]
+  });
+}
+function camClear() {
+  if (!ANIM.cam.kfs.length) return;
+  pushUndo();
+  ANIM.cam = { kfs: [] };
+  renderAll();
 }
 
 /* exports every frame as an animated GIF, scaled to at most 640 px wide */
@@ -281,6 +334,8 @@ function renderStage() {
   c.translate(r.width / 2 + ANIM.panX, r.height / 2 + ANIM.panY);
   c.scale(k, k);
   c.translate(-ANIM.W / 2, -ANIM.H / 2);
+  c.save();
+  applyCam(c, ANIM.frame);
   c.fillStyle = ANIM.bg || '#ffffff';
   c.fillRect(0, 0, ANIM.W, ANIM.H);
   drawOnion(c, ANIM.frame);
@@ -288,6 +343,7 @@ function renderStage() {
   const sl = selLayer();
   if (sl) drawSelection(c, sl, k);
   if (ANIM.pen && ANIM.pen.pts.length) drawPenPreview(c, k);
+  c.restore();
   drawGuides(c, k);
   if (ANIM.rulers) drawRulers(c, r, k);
   c.setTransform(1, 0, 0, 1, 0, 0);
@@ -398,7 +454,7 @@ function hitLayer(d, frame) {
 
 /* ---------- undo ---------- */
 function snapshotAnim() {
-  return JSON.stringify({ layers: ANIM.layers, sel: ANIM.sel });
+  return JSON.stringify({ layers: ANIM.layers, sel: ANIM.sel, cam: ANIM.cam });
 }
 function pushUndo() {
   ANIM.undo.push(snapshotAnim());
@@ -412,7 +468,7 @@ function animUndo(redo) {
   if (!from.length) return;
   to.push(snapshotAnim());
   const s = JSON.parse(from.pop());
-  ANIM.layers = s.layers; ANIM.sel = s.sel;
+  ANIM.layers = s.layers; ANIM.sel = s.sel; ANIM.cam = s.cam || { kfs: [] };
   renderAll();
 }
 
@@ -1417,7 +1473,7 @@ function animData() {
   return {
     format: 'photostudio-anim', version: 1, name: ANIM.name,
     W: ANIM.W, H: ANIM.H, bg: ANIM.bg, fps: ANIM.fps, frames: ANIM.frames,
-    frame: ANIM.frame, layers: ANIM.layers, imgs: ANIM.imgs
+    frame: ANIM.frame, layers: ANIM.layers, imgs: ANIM.imgs, cam: ANIM.cam
   };
 }
 async function animSave(explicit, silent) {
@@ -1456,6 +1512,7 @@ async function loadAnimData(d, id, name) {
   ANIM.fps = d.fps || 24; ANIM.frames = d.frames || 120;
   ANIM.frame = clamp(d.frame || 0, 0, ANIM.frames - 1);
   ANIM.layers = d.layers; ANIM.imgs = d.imgs || {};
+  ANIM.cam = d.cam && Array.isArray(d.cam.kfs) ? d.cam : { kfs: [] };
   ANIM.sel = null; ANIM.undo = []; ANIM.redo = []; ANIM.touched = false; ANIM.dirty = false;
   ANIM.zoom = 1; ANIM.panX = 0; ANIM.panY = 0;
   await Promise.all(Object.entries(ANIM.imgs).map(([k, src]) => animImgLoad(k, src)));
@@ -1465,7 +1522,7 @@ function resetAnim(opts) {
   Object.assign(ANIM, {
     id: null, name: opts.name, W: opts.W, H: opts.H, bg: opts.bg, fps: opts.fps, frames: opts.frames,
     frame: 0, playing: false, sel: null, layers: [], imgs: {}, zoom: 1, panX: 0, panY: 0,
-    undo: [], redo: [], touched: false, dirty: false
+    undo: [], redo: [], touched: false, dirty: false, cam: { kfs: [] }
   });
   Object.keys(ASI).forEach(k => delete ASI[k]);
   ANIM.guides = { v: [], h: [] };
@@ -1595,6 +1652,8 @@ function animMenuDefs() {
     ],
     'الرسوم المتحركة': [
       { label: 'إضافة مفتاح عند المؤشر', fn: addKeyHere },
+      { label: 'مفتاح الكاميرا عند المؤشر…', fn: camKeyHere },
+      { label: 'حذف مفاتيح الكاميرا', fn: camClear },
       { label: 'حذف المفتاح عند المؤشر', fn: deleteKeyHere },
       { label: 'تشغيل / إيقاف', fn: () => animPlay(!ANIM.playing) },
       { label: 'إيقاف وإرجاع للبداية', fn: animStop },
