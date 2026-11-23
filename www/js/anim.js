@@ -179,6 +179,30 @@ function drawScene(c, frame) {
   ANIM.layers.forEach(l => drawLayer(c, l, frame));
 }
 
+/* exports every frame as an animated GIF, scaled to at most 640 px wide */
+async function exportAnimGif() {
+  if (!ANIM.open || !ANIM.layers.length) return toast(t('لا توجد طبقات للتصدير'));
+  try {
+    toast(t('جاري تصدير GIF…'));
+    const scale = Math.min(1, 640 / ANIM.W);
+    const w = Math.max(1, Math.round(ANIM.W * scale)), h = Math.max(1, Math.round(ANIM.H * scale));
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const c = cv.getContext('2d');
+    const delay = Math.max(2, Math.round(100 / (ANIM.fps || 24)));   // GIF delays are in centiseconds
+    const frames = [];
+    for (let f = 0; f < ANIM.frames; f++) {
+      c.setTransform(scale, 0, 0, scale, 0, 0);
+      drawScene(c, f);
+      frames.push({ indices: gifIndices(c.getImageData(0, 0, w, h).data), delay });
+      if (f % 4 === 3) await new Promise(r => setTimeout(r, 0));   // keep the page responsive
+    }
+    const bytes = encodeGif(w, h, frames, ANIM.loop);
+    await saveBlob(new Blob([bytes], { type: 'image/gif' }), `${ANIM.name || 'animation'}.gif`);
+  } catch (e) {
+    toast(t('فشل التصدير'));
+  }
+}
+
 /* onion skin: the neighbouring frames drawn as tinted ghosts under the current frame (earlier red, later blue) */
 let ONION_CV = null;
 function drawOnion(c, frame) {
@@ -1509,6 +1533,7 @@ function animMenuDefs() {
       { label: 'الصفحة الرئيسية', fn: () => closeAnimScreen() },
       { label: 'مشروع جديد…', fn: () => openAnimNewDialog() },
       { label: 'حفظ المشروع', fn: () => animSave(true, false) },
+      { label: 'تصدير GIF', fn: exportAnimGif },
       { label: 'إعادة التسمية', fn: () => renameAnim() }
     ],
     'تحرير': [
