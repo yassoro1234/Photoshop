@@ -419,7 +419,9 @@ stageEl.addEventListener('pointerdown', e => {
   }
   if (pointers.size > 2 || gesture) return;
 
-  const tool = TOOLS[state.spaceDown ? 'hand' : state.tool];
+  const toolId = state.spaceDown ? 'hand' : state.tool;
+  if (state.maskEdit && isAdjust(cur()) && !MASK_PAINT_TOOLS.has(toolId)) return toast(t('هذه الأداة لا تعمل على قناع طبقة التعديل'));
+  const tool = TOOLS[toolId];
   const p = docPoint(e.clientX, e.clientY);
   drag = { id: e.pointerId, tool, start: p, last: p, sx: e.clientX, sy: e.clientY };
   tool.down(p, e, drag);

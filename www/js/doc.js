@@ -19,7 +19,12 @@ function makeGroup(name) {
 const isRaster = l => !!l && l.type !== 'group' && l.type !== 'adjust';
 const isAdjust = l => !!l && l.type === 'adjust';   // adjustment layer: no pixels of its own
 const cur = () => state.layers[state.active] || null;
-const curRaster = () => { const l = cur(); return isRaster(l) ? l : null; };
+/* the layer that is being drawn on: raster layers, or an adjustment layer while its mask is being edited */
+const curRaster = () => { const l = cur(); return isRaster(l) || (isAdjust(l) && state.maskEdit && !!l.mask) ? l : null; };
+/* the layer a mask belongs to: any pixel layer or adjustment layer */
+const maskOwner = () => { const l = cur(); return isRaster(l) || isAdjust(l) ? l : null; };
+/* tools that paint through a mask, so they can be used on an adjustment layer's mask */
+const MASK_PAINT_TOOLS = new Set(['brush', 'eraser', 'pencil', 'blur', 'sharpen', 'smudge', 'dodge', 'burn', 'sponge', 'heal', 'colorrep', 'gradient', 'hand', 'zoom']);
 
 function isLayerVisible(l) {
   if (!l.visible) return false;
@@ -457,7 +462,7 @@ function toggleLock(i) {
   l.locked = !l.locked; refreshLayers();
 }
 function addMask() {
-  const l = curRaster(); if (!l) return;
+  const l = maskOwner(); if (!l) return;
   if (l.mask) return toast(t('القناع موجود بالفعل'));
   l.mask = mkCanvas(state.W, state.H);
   const x = l.mask.getContext('2d');
@@ -465,12 +470,12 @@ function addMask() {
   pushHistory(); render(); refreshLayers();
 }
 function removeMask() {
-  const l = curRaster(); if (!l || !l.mask) return;
+  const l = maskOwner(); if (!l || !l.mask) return;
   l.mask = null; state.maskEdit = false;
   pushHistory(); render(); refreshLayers();
 }
 function toggleMaskEdit() {
-  const l = curRaster();
+  const l = maskOwner();
   if (!l || !l.mask) return toast(t('أضف قناعاً أولاً'));
   state.maskEdit = !state.maskEdit;
   toast(state.maskEdit ? t('تحرير القناع: الفرشاة تُظهر، الممحاة تُخفي') : t('تحرير الطبقة'));
