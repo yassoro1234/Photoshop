@@ -15,6 +15,7 @@ const ANIM = {
   sel: null, layers: [], imgs: {},
   zoom: 1, panX: 0, panY: 0, k: 1,
   tool: 'select', graphOpen: false, graphProp: 'x',
+  onion: { on: false, before: 2, after: 1, opacity: 0.4 },   // onion skin: view only, not saved
   undo: [], redo: []
 };
 const ANIM_ICON = {"select": "01_move.png", "hand": "22_hand.png", "zoom": "23_zoom.png", "text": "17_text.png", "rect": "18_rectangle.png", "ellipse": "19_ellipse.png", "brush": "08_brush.png", "eraser": "10_eraser.png", "pen": "14_pen.png", "bucket": "13_paint_bucket.png", "eyedrop": "07_eyedropper.png"};   // tool id -> icon file in www/icons
@@ -178,6 +179,36 @@ function drawScene(c, frame) {
   ANIM.layers.forEach(l => drawLayer(c, l, frame));
 }
 
+/* onion skin: the neighbouring frames drawn as tinted ghosts under the current frame (earlier red, later blue) */
+let ONION_CV = null;
+function drawOnion(c, frame) {
+  const o = ANIM.onion;
+  if (!o || !o.on) return;
+  if (!ONION_CV || ONION_CV.width !== ANIM.W || ONION_CV.height !== ANIM.H) {
+    ONION_CV = document.createElement('canvas'); ONION_CV.width = ANIM.W; ONION_CV.height = ANIM.H;
+  }
+  const sx = ONION_CV.getContext('2d');
+  const ghost = (f, tint) => {
+    sx.setTransform(1, 0, 0, 1, 0, 0);
+    sx.clearRect(0, 0, ONION_CV.width, ONION_CV.height);
+    ANIM.layers.forEach(l => drawLayer(sx, l, f));
+    sx.globalCompositeOperation = 'source-atop';
+    sx.fillStyle = tint;
+    sx.fillRect(0, 0, ONION_CV.width, ONION_CV.height);
+    sx.globalCompositeOperation = 'source-over';
+    c.globalAlpha = o.opacity;
+    c.drawImage(ONION_CV, 0, 0);
+    c.globalAlpha = 1;
+  };
+  for (let d = o.before; d >= 1; d--) if (frame - d >= 0) ghost(frame - d, 'rgba(255,70,70,0.6)');
+  for (let d = o.after; d >= 1; d--) if (frame + d < ANIM.frames) ghost(frame + d, 'rgba(70,140,255,0.6)');
+}
+function toggleOnion() {
+  ANIM.onion.on = !ANIM.onion.on;
+  toast(ANIM.onion.on ? t('ورق البصل مفعّل') : t('ورق البصل متوقف'));
+  renderStage();
+}
+
 function renderStage() {
   const cv = $('asCv'), wrap = $('asStageWrap');
   const r = wrap.getBoundingClientRect();
@@ -195,7 +226,10 @@ function renderStage() {
   c.translate(r.width / 2 + ANIM.panX, r.height / 2 + ANIM.panY);
   c.scale(k, k);
   c.translate(-ANIM.W / 2, -ANIM.H / 2);
-  drawScene(c, ANIM.frame);
+  c.fillStyle = ANIM.bg || '#ffffff';
+  c.fillRect(0, 0, ANIM.W, ANIM.H);
+  drawOnion(c, ANIM.frame);
+  ANIM.layers.forEach(l => drawLayer(c, l, ANIM.frame));
   const sl = selLayer();
   if (sl) drawSelection(c, sl, k);
   if (ANIM.pen && ANIM.pen.pts.length) drawPenPreview(c, k);
@@ -1487,6 +1521,7 @@ function animMenuDefs() {
       { label: 'تكبير', fn: () => zoomBy(1.25) },
       { label: 'تصغير', fn: () => zoomBy(1 / 1.25) },
       { label: 'ملاءمة الشاشة', fn: () => { ANIM.zoom = 1; ANIM.panX = 0; ANIM.panY = 0; renderStage(); } },
+      { label: 'ورق البصل (تبديل)', fn: toggleOnion },
       { label: 'المساطر', fn: () => { ANIM.rulers = !ANIM.rulers; renderStage(); } },
       { label: 'مسح الأدلة', fn: () => { ANIM.guides = { v: [], h: [] }; renderStage(); } }
     ],
