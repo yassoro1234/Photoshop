@@ -301,6 +301,19 @@ function buildOpts() {
   }
 
   switch (state.tool) {
+    case 'blur': case 'sharpen': case 'smudge': case 'dodge': case 'burn': case 'sponge': {
+      html += bounded('brushSize', 'الحجم', 1, 400, 12);
+      html += bounded('retStrength', 'القوة %', 1, 100, 50);
+      if (state.tool === 'dodge' || state.tool === 'burn') {
+        html += `<span>${esc(t('النطاق'))}</span> <select id="retRange">${[['mid', 'متوسطات'], ['shadow', 'ظلال'], ['high', 'مناطق مضيئة'], ['all', 'الكل']].map(([v, lab]) =>
+          `<option value="${v}"${(OPT.retRange ?? 'mid') === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
+      }
+      if (state.tool === 'sponge') {
+        html += `<span>${esc(t('الوضع'))}</span> <select id="retSponge">${[['sat', 'تشبع'], ['desat', 'إزالة تشبع']].map(([v, lab]) =>
+          `<option value="${v}"${(OPT.retSponge ?? 'sat') === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
+      }
+      break;
+    }
     case 'brush': case 'eraser':
       html += bounded('brushSize', 'الحجم', 1, 400, 12);
       html += bounded('brushAlpha', 'الشفافية %', 1, 100, 100);
@@ -400,7 +413,7 @@ function buildOpts() {
 }
 
 function bindOpts() {
-  ['brushSize', 'brushAlpha', 'tolerance', 'textSize', 'feather', 'growPx', 'sides'].forEach(id => {
+  ['brushSize', 'brushAlpha', 'retStrength', 'tolerance', 'textSize', 'feather', 'growPx', 'sides'].forEach(id => {
     const e = $(id); if (!e) return;
     e.oninput = () => { OPT[id] = parseFloat(e.value) || OPT[id]; };
   });
@@ -425,7 +438,7 @@ function bindOpts() {
   on('polyDone', polyFinish);
   on('polyCancel', polyCancel);
   const sc = $('shapeColor'); if (sc) sc.oninput = () => { OPT.shapeColor = sc.value; };
-  ['selShape', 'selMode', 'lassoType', 'wandMode', 'cropRatio', 'shapeKind'].forEach(id => {
+  ['selShape', 'selMode', 'lassoType', 'wandMode', 'cropRatio', 'shapeKind', 'retRange', 'retSponge'].forEach(id => {
     const e = $(id); if (!e) return;
     e.onchange = () => { OPT[id] = e.value; if (id === 'lassoType') buildOpts(); };
   });
@@ -716,7 +729,7 @@ function renderTabs() {
 
 /* ---------- keyboard shortcuts ---------- */
 const TOOL_KEYS = {};
-TOOL_LIST.forEach(tl => TOOL_KEYS[tl.key.toLowerCase()] = tl.id);
+TOOL_LIST.forEach(tl => { if (tl.key) TOOL_KEYS[tl.key.toLowerCase()] = tl.id; });
 
 window.addEventListener('keydown', e => {
   if (ANIM.open) return;   // the animation studio handles its own keys

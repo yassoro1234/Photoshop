@@ -470,6 +470,8 @@ const I18N = {
     'إنهاء': 'Done',
     'إخفاء': 'Hide',
     'اختر طبقة رسم أولاً': 'Select a drawing layer first',
+    'القوة %': 'Strength %', 'النطاق': 'Range', 'متوسطات': 'Midtones', 'ظلال': 'Shadows',
+    'مناطق مضيئة': 'Highlights', 'الكل': 'All', 'الوضع': 'Mode', 'تشبع': 'Saturate', 'إزالة تشبع': 'Desaturate',
     'حجم': 'Size',
     'لون': 'Color',
     'فرشاة': 'Brush',
