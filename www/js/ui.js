@@ -585,7 +585,8 @@ function syncLayerCtl() {
   $('opacity').value = Math.round(l.opacity * 100);
   $('opVal').textContent = Math.round(l.opacity * 100) + '%';
   $('blend').value = l.blend || 'source-over';
-  $('opacity').disabled = $('blend').disabled = !isR;
+  $('opacity').disabled = !(isR || l.type === 'group');   // a group's opacity applies to everything inside it
+  $('blend').disabled = !isR;
 }
 function setOpacity(v) {
   const l = cur(); if (!l) return;

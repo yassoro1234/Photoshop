@@ -484,9 +484,68 @@ function adjustLayerMenu(x, y) {
   showCtx(x, y, ADJ_KEYS.map(k => ({ label: defs[k].label, fn: () => addAdjustLayer(k) })));
 }
 /* edits the settings of an adjustment layer; Cancel restores the values it had when the dialog opened */
+/* curve editor: five points at fixed inputs; drag them up or down, with a live preview */
+function openCurveEditor(l) {
+  const S = 256, XS = [0, 64, 128, 192, 255];
+  const before = { ...l.adj.params };
+  const P = l.adj.params;
+  const cv = document.createElement('canvas');
+  cv.width = S; cv.height = S;
+  cv.style.cssText = 'width:100%;max-width:300px;aspect-ratio:1;touch-action:none;background:#111;border-radius:8px;display:block;margin:4px auto';
+  const body = document.createElement('div');
+  body.className = 'ctrls';
+  body.appendChild(cv);
+  const yOf = i => clamp(P['p' + i], 0, 255);
+  const valueAt = v => { let s = 0; while (s < 3 && v > XS[s + 1]) s++; return lerpN(yOf(s), yOf(s + 1), (v - XS[s]) / (XS[s + 1] - XS[s])); };
+  const draw = () => {
+    const x = cv.getContext('2d');
+    x.clearRect(0, 0, S, S);
+    x.strokeStyle = '#333'; x.lineWidth = 1;
+    for (let g = 1; g < 4; g++) { x.beginPath(); x.moveTo(g * 64, 0); x.lineTo(g * 64, S); x.moveTo(0, g * 64); x.lineTo(S, g * 64); x.stroke(); }
+    x.strokeStyle = '#7fb6ff'; x.lineWidth = 2;
+    x.beginPath();
+    for (let v = 0; v <= 255; v += 2) { const py = S - 1 - valueAt(v); v ? x.lineTo(v, py) : x.moveTo(v, py); }
+    x.stroke();
+    x.fillStyle = '#fff';
+    XS.forEach((vx, i) => { x.beginPath(); x.arc(vx, S - 1 - yOf(i), 6, 0, Math.PI * 2); x.fill(); });
+  };
+  const toCanvas = e => {
+    const r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width * S, y: (e.clientY - r.top) / r.height * S };
+  };
+  let drag = -1, raf = 0;
+  const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); };
+  cv.onpointerdown = e => {
+    const q = toCanvas(e);
+    let best = -1, bd = 1e9;
+    XS.forEach((vx, i) => { const d = Math.hypot(q.x - vx, q.y - (S - 1 - yOf(i))); if (d < bd) { bd = d; best = i; } });
+    if (bd > 26) return;
+    drag = best; cv.setPointerCapture(e.pointerId); e.preventDefault();
+  };
+  cv.onpointermove = e => {
+    if (drag < 0) return;
+    const q = toCanvas(e);
+    P['p' + drag] = clamp(S - 1 - q.y, 0, 255);
+    draw(); schedule();
+  };
+  const endDrag = () => { drag = -1; };
+  cv.onpointerup = endDrag; cv.onpointercancel = endDrag;
+  draw();
+  const cancel = () => { if (raf) cancelAnimationFrame(raf); l.adj.params = before; render(); };
+  openModal({
+    title: t('منحنى الألوان'), body,
+    buttons: [
+      { label: t('إلغاء'), onClick: () => { cancel(); closeModal(); } },
+      { label: t('تطبيق'), primary: true, onClick: () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } pushHistory(); render(); refreshLayers(); closeModal(); } }
+    ],
+    onCancel: cancel
+  });
+}
+
 function editAdjustLayer() {
   const l = cur();
   if (!l || l.type !== 'adjust') return;
+  if (l.adj.key === 'curves') return openCurveEditor(l);
   const F = filterDefs()[l.adj.key];
   if (!F.controls.length) return toast(t('لا توجد إعدادات لهذا التعديل'));
   const before = { ...l.adj.params };
