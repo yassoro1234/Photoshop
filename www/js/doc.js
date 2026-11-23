@@ -16,7 +16,8 @@ function makeGroup(name) {
     blend: 'source-over', mask: null, group: null, text: null
   };
 }
-const isRaster = l => !!l && l.type !== 'group';
+const isRaster = l => !!l && l.type !== 'group' && l.type !== 'adjust';
+const isAdjust = l => !!l && l.type === 'adjust';   // adjustment layer: no pixels of its own
 const cur = () => state.layers[state.active] || null;
 const curRaster = () => { const l = cur(); return isRaster(l) ? l : null; };
 
@@ -104,7 +105,9 @@ function drawLayerPixels(x, l) {
 function drawStack(x, layers, live) {
   for (let i = 0; i < layers.length; i++) {
     const l = layers[i];
-    if (!isRaster(l) || !isLayerVisible(l) || l.clip) continue;
+    if (!(isRaster(l) || isAdjust(l)) || !isLayerVisible(l)) continue;
+    if (isAdjust(l)) { applyAdjustLayer(x, l); continue; }   // filters everything drawn so far
+    if (l.clip) continue;
     x.globalAlpha = l.opacity;
     x.globalCompositeOperation = l.blend;
     if (live && state.ft && state.ft.id === l.id) {     // live preview of a free transform
@@ -407,21 +410,16 @@ function mergeDown() {
   pushHistory(); render(); refreshLayers();
 }
 function flattenAll() {
-  const r = state.layers.filter(isRaster);
+  const r = state.layers.filter(l => isRaster(l) || isAdjust(l));
   if (r.length < 2) return;
   const out = nameLayer(makeLayer(''), 'Flattened');
-  for (const l of r) if (isLayerVisible(l)) {
-    out.ctx.globalAlpha = l.opacity;
-    out.ctx.globalCompositeOperation = l.blend;
-    out.ctx.drawImage(l.mask ? maskedCopy(l) : l.canvas, 0, 0);
-  }
-  out.ctx.globalAlpha = 1; out.ctx.globalCompositeOperation = 'source-over';
+  drawStack(out.ctx, r, false);
   state.layers = [out]; state.active = 0;
   pushHistory(); render(); refreshLayers();
 }
 /* merges every visible raster layer into one, keeping hidden layers where they are */
 function mergeVisible() {
-  const vis = state.layers.filter(l => isRaster(l) && isLayerVisible(l));
+  const vis = state.layers.filter(l => (isRaster(l) || isAdjust(l)) && isLayerVisible(l));
   if (vis.length < 2) return toast(t('لا توجد طبقات مرئية كافية للدمج'));
   const out = nameLayer(makeLayer(''), 'Merged');
   drawStack(out.ctx, vis, false);

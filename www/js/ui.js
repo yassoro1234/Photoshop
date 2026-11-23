@@ -146,6 +146,7 @@ function menuDefs() {
       { label: 'دمج المرئية', fn: mergeVisible },
       { label: 'قص للطبقة السفلية', fn: toggleClip },
       { label: 'فك المجموعة', fn: ungroup },
+      { label: 'طبقة تعديل…', fn: () => adjustLayerMenu(innerWidth / 2 - 110, innerHeight / 3) },
       { label: 'تسطيح الكل', fn: flattenAll },
       { sep: 1 },
       { label: 'إضافة قناع', fn: addMask },
@@ -462,7 +463,8 @@ function layerRow(i) {
   } else {
     const th = document.createElement('div');
     th.className = 'thumb';
-    th.appendChild(thumbFor(l));
+    if (l.type === 'adjust') { const ic = document.createElement('span'); ic.textContent = '◐'; th.appendChild(ic); }
+    else th.appendChild(thumbFor(l));
     row.appendChild(th);
   }
 
@@ -518,7 +520,7 @@ function layerRow(i) {
 function syncLayerCtl() {
   const l = cur();
   if (!l) return;
-  const isR = isRaster(l);
+  const isR = isRaster(l) || isAdjust(l);
   $('opacity').value = Math.round(l.opacity * 100);
   $('opVal').textContent = Math.round(l.opacity * 100) + '%';
   $('blend').value = l.blend || 'source-over';
@@ -572,6 +574,7 @@ function layerMenuItems(i) {
     { label: t('حذف'), fn: deleteLayer }
   ];
   if (l.type === 'text') items.unshift({ label: t('تعديل النص…'), fn: editTextLayer });
+  if (l.type === 'adjust') items.unshift({ label: t('تعديل التعديل…'), fn: editAdjustLayer });
   if (l.type !== 'group' && state.layers.find(g => g.type === 'group')) {
     items.push({ sep: 1 });
     state.layers.filter(g => g.type === 'group').forEach(g =>

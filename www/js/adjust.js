@@ -447,3 +447,59 @@ function openCurves() {
   });
   apply();
 }
+
+
+/* ---------- adjustment layers: non-destructive, the filter is applied to everything below ---------- */
+const ADJ_KEYS = ['brightness', 'exposure', 'hue', 'temperature', 'levels', 'grayscale', 'invert'];
+/* filters everything drawn so far (x holds the stack below this layer), mixed by opacity and mask */
+function applyAdjustLayer(x, l) {
+  const F = filterDefs()[l.adj && l.adj.key];
+  if (!F) return;
+  const W = x.canvas.width, H = x.canvas.height;
+  const cur = x.getImageData(0, 0, W, H);
+  const src = tmpCanvas('adjSrc');
+  src.getContext('2d').putImageData(cur, 0, 0);
+  const o = F.make(l.adj.params)(src).getContext('2d').getImageData(0, 0, W, H).data;
+  const s = cur.data;
+  const m = l.mask ? l.mask.getContext('2d').getImageData(0, 0, W, H).data : null;
+  for (let i = 0; i < s.length; i += 4) {
+    const a = l.opacity * (m ? m[i + 3] / 255 : 1);
+    if (a <= 0) continue;
+    for (let k = 0; k < 4; k++) s[i + k] = s[i + k] + (o[i + k] - s[i + k]) * a;
+  }
+  x.putImageData(cur, 0, 0);
+}
+function addAdjustLayer(key) {
+  const F = filterDefs()[key];
+  if (!F) return;
+  const params = {};
+  F.controls.forEach(c => params[c.k] = c.val);
+  insertAboveActive({ id: uid(), name: F.label, type: 'adjust', canvas: null, ctx: null, visible: true, locked: false,
+    opacity: 1, blend: 'source-over', mask: null, group: null, text: null, adj: { key, params } });
+  pushHistory(); render(); refreshLayers();
+}
+function adjustLayerMenu(x, y) {
+  const defs = filterDefs();
+  showCtx(x, y, ADJ_KEYS.map(k => ({ label: defs[k].label, fn: () => addAdjustLayer(k) })));
+}
+/* edits the settings of an adjustment layer; Cancel restores the values it had when the dialog opened */
+function editAdjustLayer() {
+  const l = cur();
+  if (!l || l.type !== 'adjust') return;
+  const F = filterDefs()[l.adj.key];
+  if (!F.controls.length) return toast(t('لا توجد إعدادات لهذا التعديل'));
+  const before = { ...l.adj.params };
+  const body = document.createElement('div');
+  body.className = 'ctrls';
+  F.controls.forEach(c => body.appendChild(controlRow({ ...c, val: l.adj.params[c.k] ?? c.val },
+    v => { l.adj.params[c.k] = v; render(); })));
+  const cancel = () => { l.adj.params = before; render(); };
+  openModal({
+    title: F.label, body,
+    buttons: [
+      { label: t('إلغاء'), onClick: () => { cancel(); closeModal(); } },
+      { label: t('تطبيق'), primary: true, onClick: () => { pushHistory(); render(); refreshLayers(); closeModal(); } }
+    ],
+    onCancel: cancel
+  });
+}
