@@ -176,7 +176,20 @@ function menuDefs() {
       { label: 'ضوضاء…', fn: () => runFilter('noise') },
       { label: 'تدرج الرمادي', fn: () => runFilter('grayscale') },
       { label: 'عكس الألوان', fn: () => runFilter('invert') },
-      { label: 'تظليل الحواف…', fn: () => runFilter('vignette') }
+      { label: 'تظليل الحواف…', fn: () => runFilter('vignette') },
+      { sep: 1 },
+      { label: 'طمس صندوقي…', fn: () => runFilter('boxBlur') },
+      { label: 'طمس الحركة…', fn: () => runFilter('motionBlur') },
+      { label: 'طمس دوراني…', fn: () => runFilter('radialBlur') },
+      { label: 'تحديد حاد (قناع غير حاد)…', fn: () => runFilter('unsharp') },
+      { label: 'تقليل الضوضاء…', fn: () => runFilter('reduceNoise') },
+      { label: 'تمرير عالٍ…', fn: () => runFilter('highPass') },
+      { label: 'إزاحة…', fn: () => runFilter('offset') },
+      { label: 'موجة…', fn: () => runFilter('wave') },
+      { label: 'تموج…', fn: () => runFilter('ripple') },
+      { label: 'دوامة…', fn: () => runFilter('twirl') },
+      { label: 'كروي…', fn: () => runFilter('spherize') },
+      { label: 'ضغط…', fn: () => runFilter('pinch') }
     ]},
     { label: 'View', items: [
       { label: 'ملاءمة للشاشة', key: 'Ctrl+0', fn: resetView },

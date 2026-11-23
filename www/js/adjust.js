@@ -54,6 +54,7 @@ function curveLUT(xs, ys) {
 /* ---------- filter catalogue ---------- */
 function filterDefs() {
   return {
+  ...extraFilterDefs(),
   brightness: {
     label: t('السطوع والتباين'),
     controls: [
