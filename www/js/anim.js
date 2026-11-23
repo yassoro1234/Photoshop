@@ -73,6 +73,11 @@ function layerPropsAt(l, frame) {
   const e = easeValue(a, (frame - a.f) / (b.f - a.f));
   const out = {};
   AP_PROPS.forEach(q => { out[q] = a.p[q] + (b.p[q] - a.p[q]) * e; });
+  // shape exponent: morphs between keys; if only one key sets it, that value holds
+  if (a.p.n !== undefined || b.p.n !== undefined) {
+    const na = a.p.n ?? b.p.n, nb = b.p.n ?? a.p.n;
+    out.n = na + (nb - na) * e;
+  }
   return out;
 }
 /* Index of the keyframe segment that contains the frame, or -1 */
@@ -161,6 +166,16 @@ function drawLayer(c, l, frame) {
   if (l.type === 'image' || l.type === 'draw') {
     const im = LIVE[l.id] || ASI[l.key];
     if (im && (im.complete ?? true)) c.drawImage(im, -l.w / 2, -l.h / 2, l.w, l.h);
+  } else if ((l.type === 'rect' || l.type === 'ellipse') && p.n !== undefined) {
+    // superellipse: 2 is an ellipse, higher values square off towards a rectangle
+    c.fillStyle = l.color; c.beginPath();
+    const a = l.w / 2, b = l.h / 2, e = 2 / clamp(p.n, 2, 40), N = 128;
+    for (let i = 0; i <= N; i++) {
+      const th = i / N * Math.PI * 2, cs = Math.cos(th), sn = Math.sin(th);
+      const x = a * Math.sign(cs) * Math.pow(Math.abs(cs), e), y = b * Math.sign(sn) * Math.pow(Math.abs(sn), e);
+      i ? c.lineTo(x, y) : c.moveTo(x, y);
+    }
+    c.closePath(); c.fill();
   } else if (l.type === 'rect') {
     c.fillStyle = l.color; c.fillRect(-l.w / 2, -l.h / 2, l.w, l.h);
   } else if (l.type === 'ellipse') {
@@ -776,6 +791,13 @@ function renderProps() {
   if (l.type !== 'image') {
     const col = colorSwatch(l.color, locked, hex => { l.color = hex; renderStage(); });
     body.append(formRowA(t('اللون'), col));
+  }
+  if (l.type === 'rect' || l.type === 'ellipse') {
+    // shape exponent: 2 = ellipse, up to 40 = rectangle; keyframed like the other properties
+    const sh = mkNumber(+(p.n ?? (l.type === 'rect' ? 40 : 2)).toFixed(2), 2, 40, 'any');
+    sh.disabled = locked;
+    sh.onchange = () => { const v = +sh.value; if (isNaN(v)) return; pushUndo(); setProp(l, 'n', clamp(v, 2, 40)); renderAll(); };
+    body.append(formRowA(t('شكل الحواف'), sh));
   }
 
   /* easing of the segment that starts at the last keyframe at or before the playhead */
