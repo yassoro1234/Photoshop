@@ -16,6 +16,10 @@ const TOOL_LIST = [
   { id: 'dodge',   name: 'Dodge',             icon: '☀', img: '30_dodge.png', key: 'O' },
   { id: 'burn',    name: 'Burn',              icon: '☾', img: '31_burn.png' },
   { id: 'sponge',  name: 'Sponge',            icon: '●', img: '32_sponge.png' },
+  { id: 'pencil',  name: 'Pencil',            icon: '✏', img: '09_pencil.png', key: 'N' },
+  { id: 'colorrep', name: 'Color Replacement', icon: '⇄', key: 'X' },
+  { id: 'heal',    name: 'Spot Healing',      icon: '✚', img: '26_healing.png', key: 'J' },
+  { id: 'patch',   name: 'Patch',             icon: '⊡', key: 'Q' },
   { id: 'clone',   name: 'Clone Stamp',       icon: '⎘', img: '11_clone_stamp.png', key: 'S' },
   { id: 'gradient',name: 'Gradient',          icon: '◧', img: '12_gradient.png', key: 'G' },
   { id: 'bucket',  name: 'Paint Bucket',      icon: '◍', img: '13_paint_bucket.png', key: 'K' },
@@ -325,11 +329,25 @@ defTool('text', {
 
 defTool('pen', {
   cursor: 'crosshair',
-  down(p) {
-    if (!state.pen) state.pen = { pts: [] };
-    state.pen.pts.push(p);
+  down(p, e, d) {
+    if (!state.pen) state.pen = { pts: [], closed: false };
+    const pen = state.pen;
+    // a click near the first anchor closes the path and commits it
+    if (pen.pts.length > 2 && Math.hypot(p.x - pen.pts[0].x, p.y - pen.pts[0].y) < 10 / state.zoom) {
+      pen.closed = true; return commitPen();
+    }
+    const a = { x: p.x, y: p.y, ox: p.x, oy: p.y, ix: p.x, iy: p.y };
+    pen.pts.push(a);
+    d.anchor = a;
     drawOverlay();
-  }
+  },
+  move(p, e, d) {
+    const a = d.anchor; if (!a) return;
+    if (Math.hypot(p.x - a.x, p.y - a.y) < 3) { a.ox = a.x; a.oy = a.y; a.ix = a.x; a.iy = a.y; }
+    else { a.ox = p.x; a.oy = p.y; a.ix = 2 * a.x - p.x; a.iy = 2 * a.y - p.y; }
+    drawOverlay();
+  },
+  up(p, e, d) { d.anchor = null; drawOverlay(); }
 });
 
 /* Eyedropper: the foreground color follows the pointer while it is held down */
@@ -363,14 +381,18 @@ defTool('zoom', {
 function commitPen() {
   const pen = state.pen;
   state.pen = null;
-  if (!pen || pen.pts.length < 2) return drawOverlay();
-  const size = optNum('brushSize', 12);
+  if (!pen) return drawOverlay();
+  penClean(pen);
+  if (pen.pts.length < 2) return drawOverlay();
+  const mode = OPT.penMode ?? 'stroke';          // stroke | fill | both
   const c = mkCanvas(state.W, state.H), x = c.getContext('2d');
-  x.lineCap = 'round'; x.lineJoin = 'round';
-  x.lineWidth = size; x.strokeStyle = state.fg;
-  x.beginPath();
-  pen.pts.forEach((q, i) => i ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y));
-  x.stroke();
+  penPath(x, pen);
+  if (mode !== 'stroke') { x.fillStyle = state.fg; x.fill(); }
+  if (mode !== 'fill') {
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    x.lineWidth = optNum('brushSize', 12); x.strokeStyle = state.fg;
+    x.stroke();
+  }
   if (drawOntoLayer(c)) { pushHistory(); render(); refreshLayers(); }
   else drawOverlay();
 }

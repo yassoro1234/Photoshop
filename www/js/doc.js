@@ -173,16 +173,7 @@ function drawOverlay() {
     x.restore();
   }
 
-  if (state.pen && state.pen.pts.length) {
-    const pts = state.pen.pts;
-    x.save(); x.strokeStyle = state.fg; x.lineWidth = 2 / z;
-    x.beginPath();
-    pts.forEach((q, i) => i ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y));
-    x.stroke();
-    x.fillStyle = '#fff';
-    pts.forEach(q => { x.beginPath(); x.arc(q.x, q.y, 4 / z, 0, Math.PI * 2); x.fill(); });
-    x.restore();
-  }
+  if (state.pen && state.pen.pts.length) drawPenOverlay(x, state.pen, z);
 
   if (state.crop) {
     const c = state.crop;

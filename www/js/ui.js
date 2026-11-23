@@ -301,6 +301,24 @@ function buildOpts() {
   }
 
   switch (state.tool) {
+    case 'pencil':
+      html += bounded('brushSize', 'الحجم', 1, 400, 12);
+      html += bounded('brushAlpha', 'الشفافية %', 1, 100, 100);
+      break;
+    case 'colorrep':
+      html += bounded('brushSize', 'الحجم', 1, 400, 12);
+      html += bounded('tolerance', 'التسامح', 0, 255, 32);
+      html += bounded('retStrength', 'القوة %', 1, 100, 50);
+      html += hint('اضغط على اللون المراد استبداله ثم اطلِ فوقه');
+      break;
+    case 'heal':
+      html += bounded('brushSize', 'الحجم', 1, 400, 12);
+      html += bounded('retStrength', 'القوة %', 1, 100, 50);
+      html += hint('اطلِ فوق البقعة: يُملأ مكانها من محيطها مع الحفاظ على الملمس');
+      break;
+    case 'patch':
+      html += hint('ارسم تحديداً ثم اسحبه داخله إلى منطقة المصدر ليأخذ محتواها');
+      break;
     case 'blur': case 'sharpen': case 'smudge': case 'dodge': case 'burn': case 'sponge': {
       html += bounded('brushSize', 'الحجم', 1, 400, 12);
       html += bounded('retStrength', 'القوة %', 1, 100, 50);
@@ -336,10 +354,14 @@ function buildOpts() {
       html += btn('textProps', 'خصائص النص');
       html += hint('انقر لإضافة نص، أو انقر نصاً موجوداً لتعديله');
       break;
-    case 'pen':
+    case 'pen': {
       html += bounded('brushSize', 'سُمك الخط', 1, 200, 12);
-      html += btn('penDone', 'إنهاء المسار') + btn('penCancel', 'إلغاء');
+      const pm = OPT.penMode ?? 'stroke';
+      html += `<span>${esc(t('الوضع'))}</span> <select id="penMode">${[['stroke', 'حد'], ['fill', 'تعبئة'], ['both', 'حد وتعبئة']].map(([v, lab]) =>
+        `<option value="${v}"${pm === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
+      html += btn('penClose', 'إغلاق المسار') + btn('penDone', 'إنهاء المسار') + btn('penCancel', 'إلغاء');
       break;
+    }
     case 'shape': {
       html += `<span>${esc(t('الشكل'))}</span> <select id="shapeKind">${[['rect', 'مستطيل'], ['ellipse', 'إهليلج'], ['line', 'خط'], ['polygon', 'مضلع']].map(([v, lab]) =>
         `<option value="${v}"${(OPT.shapeKind || 'rect') === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
@@ -421,6 +443,7 @@ function bindOpts() {
   on('exitMask', exitMaskEdit);
   on('cloneArm', () => { state.cloneArm = !state.cloneArm; buildOpts(); toast(state.cloneArm ? t('انقر على نقطة المصدر') : t('أُلغي')); });
   on('penDone', commitPen);
+  on('penClose', () => { if (state.pen && state.pen.pts.length > 2) { state.pen.closed = true; commitPen(); } });
   on('penCancel', cancelPen);
   on('cropApply', applyCrop);
   on('cropCancel', cancelCrop);
@@ -438,7 +461,7 @@ function bindOpts() {
   on('polyDone', polyFinish);
   on('polyCancel', polyCancel);
   const sc = $('shapeColor'); if (sc) sc.oninput = () => { OPT.shapeColor = sc.value; };
-  ['selShape', 'selMode', 'lassoType', 'wandMode', 'cropRatio', 'shapeKind', 'retRange', 'retSponge'].forEach(id => {
+  ['selShape', 'selMode', 'lassoType', 'wandMode', 'cropRatio', 'shapeKind', 'retRange', 'retSponge', 'penMode'].forEach(id => {
     const e = $(id); if (!e) return;
     e.onchange = () => { OPT[id] = e.value; if (id === 'lassoType') buildOpts(); };
   });
