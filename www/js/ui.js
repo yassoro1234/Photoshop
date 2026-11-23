@@ -493,10 +493,7 @@ function refreshLayers() {
   box.innerHTML = '';
   for (let i = state.layers.length - 1; i >= 0; i--) {
     const l = state.layers[i];
-    if (l.type !== 'group' && l.group) {
-      const g = state.layers.find(x => x.id === l.group);
-      if (g && g.collapsed) continue;
-    }
+    if (groupChain(l).some(g => g.collapsed)) continue;   // hidden while any group around it is collapsed
     box.appendChild(layerRow(i));
   }
   syncLayerCtl();
@@ -534,7 +531,7 @@ function layerRow(i) {
 
   const name = document.createElement('span');
   name.className = 'name';
-  name.textContent = (l.type === 'group' ? '📁 ' : '') + (l.clip ? '↳ ' : '') + layerName(l);
+  name.textContent = '\u00a0'.repeat(groupChain(l).length * 3) + (l.type === 'group' ? '📁 ' : '') + (l.clip ? '↳ ' : '') + layerName(l);
   row.appendChild(name);
 
   const badges = [];
@@ -640,9 +637,10 @@ function layerMenuItems(i) {
   if (l.type === 'text') items.unshift({ label: t('تعديل النص…'), fn: editTextLayer });
   if (l.type === 'adjust') items.unshift({ label: t('تعديل التعديل…'), fn: editAdjustLayer });
   if (l.type === 'shape') items.unshift({ label: t('تعديل الشكل…'), fn: editShapeLayer });
-  if (l.type !== 'group' && state.layers.find(g => g.type === 'group')) {
+  const targets = state.layers.filter(g => g.type === 'group' && !isInside(g, l));
+  if (targets.length) {
     items.push({ sep: 1 });
-    state.layers.filter(g => g.type === 'group').forEach(g =>
+    targets.forEach(g =>
       items.push({ label: t('نقل إلى «{name}»', { name: layerName(g) }), fn: () => setGroupOf(i, g.id) }));
     if (l.group) items.push({ label: t('إخراج من المجموعة'), fn: () => setGroupOf(i, null) });
   }

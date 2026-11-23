@@ -26,13 +26,27 @@ const maskOwner = () => { const l = cur(); return isRaster(l) || isAdjust(l) ? l
 /* tools that paint through a mask, so they can be used on an adjustment layer's mask */
 const MASK_PAINT_TOOLS = new Set(['brush', 'eraser', 'pencil', 'blur', 'sharpen', 'smudge', 'dodge', 'burn', 'sponge', 'heal', 'colorrep', 'gradient', 'hand', 'zoom']);
 
+/* the chain of groups a layer sits in, innermost first */
+function groupChain(l) {
+  const out = [];
+  let g = l, guard = 0;
+  while (g && g.group && guard++ < 64) {
+    g = state.layers.find(x => x.id === g.group) || null;
+    if (g) out.push(g);
+  }
+  return out;
+}
 function isLayerVisible(l) {
   if (!l.visible) return false;
-  if (l.group) {
-    const g = state.layers.find(x => x.id === l.group);
-    if (g && !g.visible) return false;
-  }
-  return true;
+  return groupChain(l).every(g => g.visible);
+}
+/* opacity inherited from the groups around a layer */
+function groupOpacity(l) {
+  return groupChain(l).reduce((a, g) => a * (g.opacity ?? 1), 1);
+}
+/* true if group g is l itself or sits inside l (moving l into g would make a loop) */
+function isInside(g, l) {
+  return g.id === l.id || groupChain(g).some(x => x.id === l.id);
 }
 
 /* Default layer names are stored as translation keys so they follow the language setting */
@@ -113,7 +127,7 @@ function drawStack(x, layers, live) {
     if (!(isRaster(l) || isAdjust(l)) || !isLayerVisible(l)) continue;
     if (isAdjust(l)) { applyAdjustLayer(x, l); continue; }   // filters everything drawn so far
     if (l.clip) continue;
-    x.globalAlpha = l.opacity;
+    x.globalAlpha = l.opacity * groupOpacity(l);
     x.globalCompositeOperation = l.blend;
     if (live && state.ft && state.ft.id === l.id) {     // live preview of a free transform
       x.save(); ftApply(x, state.ft); x.drawImage(state.ft.src, 0, 0); x.restore();
@@ -357,7 +371,7 @@ function addGroup() {
 function deleteLayer() {
   const l = cur(); if (!l) return;
   if (l.type === 'group') {
-    state.layers.forEach(x => { if (x.group === l.id) x.group = null; });
+    state.layers.forEach(x => { if (x.group === l.id) x.group = l.group; });
   } else if (state.layers.filter(isRaster).length <= 1) {
     return toast(t('لا يمكن حذف آخر طبقة'));
   }
@@ -441,7 +455,7 @@ function toggleClip() {
 function ungroup() {
   const g = cur();
   if (!g || g.type !== 'group') return toast(t('اختر مجموعة'));
-  state.layers.forEach(x => { if (x.group === g.id) x.group = null; });
+  state.layers.forEach(x => { if (x.group === g.id) x.group = g.group; });
   state.layers.splice(state.active, 1);
   state.active = clamp(state.active, 0, state.layers.length - 1);
   pushHistory(); render(); refreshLayers();
@@ -490,7 +504,11 @@ function exitMaskEdit() {
 }
 function setGroupOf(i, groupId) {
   const l = state.layers[i];
-  if (!l || l.type === 'group') return;
+  if (!l) return;
+  if (groupId) {
+    const g = state.layers.find(x => x.id === groupId);
+    if (!g || isInside(g, l)) return toast(t('لا يمكن نقل المجموعة داخل نفسها'));
+  }
   l.group = groupId;
   pushHistory(); render(); refreshLayers();
 }
