@@ -115,6 +115,54 @@ function colorMask(canvas, sx, sy, tol, contig) {
   return m;
 }
 
+/* ---------- refine edge: shift, smooth, contrast and feather the selection, with a live preview ---------- */
+function refineMask(orig, o) {
+  let m = orig;
+  if (o.shift) m = morphMask(m, Math.abs(o.shift), o.shift > 0);
+  if (o.smooth > 0) m = smoothMask(m, o.smooth);
+  if (o.contrast > 0) {
+    const w = m.width, h = m.height, c = mkCanvas(w, h), x = c.getContext('2d');
+    const img = m.getContext('2d').getImageData(0, 0, w, h), d = img.data, k = 1 + o.contrast / 25;
+    for (let i = 3; i < d.length; i += 4) d[i] = clamp((d[i] - 128) * k + 128, 0, 255);   // firmer edges
+    x.putImageData(img, 0, 0);
+    m = c;
+  }
+  if (o.feather > 0) m = featherMask(m, o.feather);
+  return m;
+}
+function refineEdgeDialog() {
+  if (!state.sel) return toast(t('لا يوجد تحديد'));
+  const orig = state.sel.mask, origBox = state.sel.box;
+  const P = { shift: 0, smooth: 0, contrast: 0, feather: 0 };
+  let raf = 0;
+  const apply = () => {
+    raf = 0;
+    const m = refineMask(orig, P);
+    setSelection(m, null, maskBox(m) || origBox);
+  };
+  const schedule = () => { if (!raf) raf = requestAnimationFrame(apply); };
+  const body = document.createElement('div');
+  body.className = 'ctrls';
+  [
+    { k: 'shift', label: t('توسيع / تضييق'), min: -20, max: 20, val: 0 },
+    { k: 'smooth', label: t('تنعيم الحواف'), min: 0, max: 12, val: 0 },
+    { k: 'contrast', label: t('حدة الحواف'), min: 0, max: 100, val: 0 },
+    { k: 'feather', label: t('تنعيم تدريجي'), min: 0, max: 40, val: 0 }
+  ].forEach(c => body.appendChild(controlRow(c, v => { P[c.k] = v; schedule(); })));
+  const cancel = () => { if (raf) cancelAnimationFrame(raf); state.sel = origBox ? { mask: orig, poly: null, box: origBox } : null; drawOverlay(); };
+  openModal({
+    title: t('تحسين الحواف'), body,
+    buttons: [
+      { label: t('إلغاء'), onClick: () => { cancel(); closeModal(); } },
+      { label: t('تطبيق'), primary: true, onClick: () => {
+        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+        apply(); closeModal();
+      } }
+    ],
+    onCancel: cancel
+  });
+}
+
 /* ---------- marquee ---------- */
 defTool('marquee', {
   cursor: 'crosshair',

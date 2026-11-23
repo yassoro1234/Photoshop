@@ -348,7 +348,7 @@ function buildOpts() {
       html += `<span>${esc(t('الوضع'))}</span> <select id="selMode">${modes.map(([v, lab]) =>
         `<option value="${v}"${(OPT.selMode ?? 'new') === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
       html += hint('ارسم فوق المنطقة: تُضاف البكسلات المتشابهة في اللون');
-      html += btn('selAll', 'الكل') + btn('selNone', 'إلغاء التحديد') + btn('selInv', 'عكس');
+      html += btn('selAll', 'الكل') + btn('selNone', 'إلغاء التحديد') + btn('selInv', 'عكس') + btn('refineEdge', 'تحسين الحواف');
       break;
     }
     case 'bucket':
@@ -402,7 +402,7 @@ function buildOpts() {
         html += pick('wandMode', 'النطاق', [['contig', 'متصل'], ['global', 'كل الألوان المشابهة']], 'contig');
         html += pick('selMode', 'الوضع', modes, 'new') + bounded('feather', 'تنعيم', 0, 250, 0);
       }
-      html += btn('selAll', 'الكل') + btn('selNone', 'إلغاء التحديد') + btn('selInv', 'عكس');
+      html += btn('selAll', 'الكل') + btn('selNone', 'إلغاء التحديد') + btn('selInv', 'عكس') + btn('refineEdge', 'تحسين الحواف');
       html += btn('selReselect', 'إعادة التحديد') + bounded('growPx', 'بكسل', 1, 100, 2) +
         btn('selExpand', 'توسيع') + btn('selContract', 'تقليص') + btn('selSmooth', 'تنعيم') + btn('selSave', 'حفظ التحديد');
       const saved = Object.keys(state.selections || {});
@@ -448,6 +448,7 @@ function bindOpts() {
   on('exitMask', exitMaskEdit);
   on('cloneArm', () => { state.cloneArm = !state.cloneArm; buildOpts(); toast(state.cloneArm ? t('انقر على نقطة المصدر') : t('أُلغي')); });
   on('penDone', commitPen);
+  on('refineEdge', refineEdgeDialog);
   on('penClose', () => { if (state.pen && state.pen.pts.length > 2) { state.pen.closed = true; commitPen(); } });
   on('penCancel', cancelPen);
   on('cropApply', applyCrop);
