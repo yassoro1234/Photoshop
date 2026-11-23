@@ -6,6 +6,7 @@ const TOOL_LIST = [
   { id: 'lasso',   name: 'Lasso',             icon: '⌒', img: '04_lasso.png', key: 'L' },
   { id: 'quick',   name: 'Quick Selection',   icon: '✦', img: 'quick_selection_tool.png', key: 'W' },
   { id: 'wand',    name: 'Magic Wand',        icon: '✧', img: '05_magic_wand.png', key: 'Y' },
+  { id: 'shape',   name: 'Shape',             icon: '▭', img: '18_rectangle.png', key: 'U' },
   { id: 'crop',    name: 'Crop',              icon: '⌗', img: '06_crop.png', key: 'C' },
   { id: 'brush',   name: 'Brush',             icon: '✎', img: '08_brush.png', key: 'B' },
   { id: 'eraser',  name: 'Eraser',            icon: '⌫', img: '10_eraser.png', key: 'E' },

@@ -26,7 +26,7 @@ const state = {
   dirty: false
 };
 
-const OPT = { brushSize: 12, brushAlpha: 100, tolerance: 32, textSize: 48, feather: 0, selShape: 'rect', selMode: 'new', lassoType: 'free', wandMode: 'contig', cropRatio: 'free' };
+const OPT = { brushSize: 12, brushAlpha: 100, tolerance: 32, textSize: 48, feather: 0, selShape: 'rect', selMode: 'new', lassoType: 'free', wandMode: 'contig', cropRatio: 'free', shapeKind: 'rect', shapeColor: '#3a6ea5', sides: 6 };
 
 let _uid = 1;
 const uid = () => _uid++;

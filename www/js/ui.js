@@ -327,6 +327,14 @@ function buildOpts() {
       html += bounded('brushSize', 'سُمك الخط', 1, 200, 12);
       html += btn('penDone', 'إنهاء المسار') + btn('penCancel', 'إلغاء');
       break;
+    case 'shape': {
+      html += `<span>${esc(t('الشكل'))}</span> <select id="shapeKind">${[['rect', 'مستطيل'], ['ellipse', 'إهليلج'], ['line', 'خط'], ['polygon', 'مضلع']].map(([v, lab]) =>
+        `<option value="${v}"${(OPT.shapeKind || 'rect') === v ? ' selected' : ''}>${esc(t(lab))}</option>`).join('')}</select>`;
+      html += `<label>${esc(t('لون'))} <input type="color" id="shapeColor" value="${OPT.shapeColor || '#3a6ea5'}"></label>`;
+      html += bounded('sides', 'الأضلاع', 3, 12, 6);
+      html += hint('اسحب على الطبقة لرسم الشكل. يبقى الشكل قابلاً للتعديل بعد الحفظ');
+      break;
+    }
     case 'crop': {
       const ratios = [['free', 'حرة'], ['1:1', '1:1'], ['4:3', '4:3'], ['3:2', '3:2'], ['16:9', '16:9'], ['9:16', '9:16'], ['original', 'الأصلية']];
       html += `<span>${esc(t('النسبة'))}</span> <select id="cropRatio">${ratios.map(([v, lab]) =>
@@ -392,7 +400,7 @@ function buildOpts() {
 }
 
 function bindOpts() {
-  ['brushSize', 'brushAlpha', 'tolerance', 'textSize', 'feather', 'growPx'].forEach(id => {
+  ['brushSize', 'brushAlpha', 'tolerance', 'textSize', 'feather', 'growPx', 'sides'].forEach(id => {
     const e = $(id); if (!e) return;
     e.oninput = () => { OPT[id] = parseFloat(e.value) || OPT[id]; };
   });
@@ -416,7 +424,8 @@ function bindOpts() {
   on('selDelete', deleteSelection);
   on('polyDone', polyFinish);
   on('polyCancel', polyCancel);
-  ['selShape', 'selMode', 'lassoType', 'wandMode', 'cropRatio'].forEach(id => {
+  const sc = $('shapeColor'); if (sc) sc.oninput = () => { OPT.shapeColor = sc.value; };
+  ['selShape', 'selMode', 'lassoType', 'wandMode', 'cropRatio', 'shapeKind'].forEach(id => {
     const e = $(id); if (!e) return;
     e.onchange = () => { OPT[id] = e.value; if (id === 'lassoType') buildOpts(); };
   });
@@ -588,6 +597,7 @@ function layerMenuItems(i) {
   ];
   if (l.type === 'text') items.unshift({ label: t('تعديل النص…'), fn: editTextLayer });
   if (l.type === 'adjust') items.unshift({ label: t('تعديل التعديل…'), fn: editAdjustLayer });
+  if (l.type === 'shape') items.unshift({ label: t('تعديل الشكل…'), fn: editShapeLayer });
   if (l.type !== 'group' && state.layers.find(g => g.type === 'group')) {
     items.push({ sep: 1 });
     state.layers.filter(g => g.type === 'group').forEach(g =>
