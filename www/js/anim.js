@@ -12,6 +12,7 @@ const ANIM = {
   open: false, id: null, name: 'Untitled', touched: false, dirty: false,
   W: 1920, H: 1080, bg: '#ffffff', fps: 24, frames: 120,
   frame: 0, playing: false, loop: true,
+  audio: null,                    // { name, src } one track, saved with the project
   sel: null, layers: [], imgs: {},
   zoom: 1, panX: 0, panY: 0, k: 1,
   tool: 'select', graphOpen: false, graphProp: 'x',
@@ -155,14 +156,31 @@ function createAt(type, d) {
 function renameTextLayer(l) { l.name = (l.str.split('\n')[0] || t('نص')).slice(0, 24); }
 
 /* ---------- drawing ---------- */
+/* parents of a layer, nearest first (a parent is the bone a layer hangs from) */
+function layerParents(l) {
+  const out = [];
+  let g = l, guard = 0;
+  while (g && g.parent && guard++ < 32) { g = ANIM.layers.find(x => x.id === g.parent) || null; if (g) out.push(g); }
+  return out;
+}
+/* a layer's own offset, rotation and scale, relative to its parent's origin */
+function applyOwnTransform(c, p) {
+  c.translate(p.x, p.y);
+  c.rotate(p.rot * Math.PI / 180);
+  c.scale(p.sx, p.sy);
+}
 function drawLayer(c, l, frame) {
   const p = layerPropsAt(l, frame);
   if (!layerShownAt(l, frame) || p.op <= 0) return;
+  const chain = layerParents(l);
+  if (chain.some(q => !layerShownAt(q, frame))) return;      // a hidden parent hides its children
+  let op = p.op;
+  chain.forEach(q => { op *= layerPropsAt(q, frame).op; });
   c.save();
-  c.globalAlpha = clamp(p.op, 0, 1);
-  c.translate(ANIM.W / 2 + p.x, ANIM.H / 2 + p.y);
-  c.rotate(p.rot * Math.PI / 180);
-  c.scale(p.sx, p.sy);
+  c.globalAlpha = clamp(op, 0, 1);
+  c.translate(ANIM.W / 2, ANIM.H / 2);                                  // the document centre is the root origin
+  [...chain].reverse().forEach(q => applyOwnTransform(c, layerPropsAt(q, frame)));   // root first
+  applyOwnTransform(c, p);
   if (l.type === 'image' || l.type === 'draw') {
     const im = LIVE[l.id] || ASI[l.key];
     if (im && (im.complete ?? true)) c.drawImage(im, -l.w / 2, -l.h / 2, l.w, l.h);
@@ -504,7 +522,8 @@ function animPlay(on) {
     if (ANIM.frame >= ANIM.frames - 1) ANIM.frame = 0;
     animLast = performance.now(); animAcc = 0;
     animRaf = requestAnimationFrame(animTick);
-  }
+    audioSync(true);
+  } else if (audioEl) audioSync(false);
   updatePlayButtons();
 }
 function animTick(now) {
@@ -515,7 +534,7 @@ function animTick(now) {
     animAcc -= step;
     ANIM.frame++;
     if (ANIM.frame >= ANIM.frames) {
-      if (ANIM.loop) ANIM.frame = 0;
+      if (ANIM.loop) { ANIM.frame = 0; audioSync(true); }   // restart the track with the loop
       else { ANIM.frame = ANIM.frames - 1; animPlay(false); renderAll(); return; }
     }
   }
@@ -1495,7 +1514,7 @@ function animData() {
   return {
     format: 'photostudio-anim', version: 1, name: ANIM.name,
     W: ANIM.W, H: ANIM.H, bg: ANIM.bg, fps: ANIM.fps, frames: ANIM.frames,
-    frame: ANIM.frame, layers: ANIM.layers, imgs: ANIM.imgs, cam: ANIM.cam
+    frame: ANIM.frame, layers: ANIM.layers, imgs: ANIM.imgs, cam: ANIM.cam, audio: ANIM.audio
   };
 }
 async function animSave(explicit, silent) {
@@ -1535,6 +1554,7 @@ async function loadAnimData(d, id, name) {
   ANIM.frame = clamp(d.frame || 0, 0, ANIM.frames - 1);
   ANIM.layers = d.layers; ANIM.imgs = d.imgs || {};
   ANIM.cam = d.cam && Array.isArray(d.cam.kfs) ? d.cam : { kfs: [] };
+  ANIM.audio = d.audio && d.audio.src ? d.audio : null; audioEl = null;
   ANIM.sel = null; ANIM.undo = []; ANIM.redo = []; ANIM.touched = false; ANIM.dirty = false;
   ANIM.zoom = 1; ANIM.panX = 0; ANIM.panY = 0;
   await Promise.all(Object.entries(ANIM.imgs).map(([k, src]) => animImgLoad(k, src)));
@@ -1544,8 +1564,9 @@ function resetAnim(opts) {
   Object.assign(ANIM, {
     id: null, name: opts.name, W: opts.W, H: opts.H, bg: opts.bg, fps: opts.fps, frames: opts.frames,
     frame: 0, playing: false, sel: null, layers: [], imgs: {}, zoom: 1, panX: 0, panY: 0,
-    undo: [], redo: [], touched: false, dirty: false, cam: { kfs: [] }
+    undo: [], redo: [], touched: false, dirty: false, cam: { kfs: [] }, audio: null
   });
+  audioEl = null;
   Object.keys(ASI).forEach(k => delete ASI[k]);
   ANIM.guides = { v: [], h: [] };
   ANIM.pen = null;
@@ -1676,6 +1697,10 @@ function animMenuDefs() {
       { label: 'إضافة مفتاح عند المؤشر', fn: addKeyHere },
       { label: 'مفتاح الكاميرا عند المؤشر…', fn: camKeyHere },
       { label: 'حذف مفاتيح الكاميرا', fn: camClear },
+      { label: 'ربط بالطبقة الأم…', fn: parentDialog },
+      { label: 'فك الربط بالطبقة الأم', fn: () => { const l = selLayer(); if (l && l.parent) { pushUndo(); l.parent = null; renderAll(); } } },
+      { label: 'صوت من الجهاز…', fn: pickAudio },
+      { label: 'حذف الصوت', fn: removeAudio },
       { label: 'حذف المفتاح عند المؤشر', fn: deleteKeyHere },
       { label: 'تشغيل / إيقاف', fn: () => animPlay(!ANIM.playing) },
       { label: 'إيقاف وإرجاع للبداية', fn: animStop },
@@ -1725,6 +1750,59 @@ function toggleGraph() {
   $('asTlBody').parentElement.classList.toggle('short', ANIM.graphOpen);
   renderAll();
 }
+/* choose the parent (bone) of the selected layer; cycles are not offered */
+function parentDialog() {
+  const l = selLayer();
+  if (!l) return toast(t('اختر طبقة أولاً'));
+  const cands = ANIM.layers.filter(x => x.id !== l.id && !layerParents(x).some(q => q.id === l.id));
+  const body = el('div', 'ctrls');
+  if (!cands.length) body.append(el('p', 'empty', t('لا توجد طبقات أخرى')));
+  cands.forEach(x => {
+    const b = el('button', '', x.name);
+    b.onclick = () => { pushUndo(); l.parent = x.id; closeModal(); renderAll(); };
+    body.append(b);
+  });
+  const buttons = [{ label: t('إلغاء'), onClick: closeModal }];
+  if (l.parent) buttons.push({ label: t('فك الربط'), onClick: () => { pushUndo(); l.parent = null; closeModal(); renderAll(); } });
+  openModal({ title: t('ربط بالطبقة الأم'), body, buttons });
+}
+
+/* ---------- audio: one track saved with the project, played from the playhead ---------- */
+let audioEl = null;
+function pickAudio() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'audio/*';
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      ANIM.audio = { name: f.name, src: r.result };
+      audioEl = null;
+      ANIM.touched = true; ANIM.dirty = true; scheduleAnimSave();
+      renderAll(); toast(t('تمت إضافة الصوت'));
+    };
+    r.readAsDataURL(f);
+  };
+  inp.click();
+}
+function removeAudio() {
+  if (!ANIM.audio) return;
+  audioSync(false);
+  ANIM.audio = null; audioEl = null;
+  ANIM.touched = true; ANIM.dirty = true; scheduleAnimSave();
+  renderAll();
+}
+/* plays the track from the playhead time, or pauses it */
+function audioSync(play) {
+  if (!ANIM.audio) return;
+  if (!audioEl || audioEl.src !== ANIM.audio.src) audioEl = new Audio(ANIM.audio.src);
+  if (play) {
+    audioEl.currentTime = ANIM.frame / (ANIM.fps || 24);
+    audioEl.play().catch(() => {});
+  } else audioEl.pause();
+}
+
 function dupLayer() {
   const l = selLayer(); if (!l) return toast(t('اختر طبقة أولاً'));
   pushUndo();
